@@ -1,5 +1,4 @@
 # QWiser University Release v1.0.0
-# Generated: 2026-01-14
 # Use with: import-images.sh
 
 qwiser/public-api:v1.0.0

@@ -8,199 +8,136 @@
 
 ## Overview
 
-QWiser container images must be imported into your Azure Container Registry (ACR) before Kubernetes deployment. This guide covers the import process.
+QWiser container images must be imported from QWiser's Azure Container Registry (ACR) into your ACR before Kubernetes deployment. QWiser provides you with pull-only credentials for this purpose.
 
 ---
 
 ## Prerequisites
 
 - [ ] ACR deployed (from Bicep deployment)
-- [ ] Azure CLI with ACR extension
-- [ ] Access to source registry (QWiser ACR or export files)
-- [ ] AKS cluster attached to ACR (configured by Bicep)
+- [ ] Azure CLI installed and logged in (`az login`)
+- [ ] QWiser ACR credentials (username and password provided by QWiser)
+- [ ] AKS cluster attached to ACR (configured automatically by Bicep)
 
 ---
 
 ## Required Images
 
-| Image | Version | Size (approx) | Purpose |
-|-------|---------|---------------|---------|
-| qwiser/public-api | v0.1.0 | ~500 MB | API Gateway |
-| qwiser/internal-db | v0.1.0 | ~400 MB | Database API |
-| qwiser/text-loading | v0.1.0 | ~600 MB | Content processing |
-| qwiser/other-generation | v0.1.0 | ~450 MB | AI generation |
-| qwiser/topic-modeling | v0.1.0 | ~800 MB | Knowledge tree coordinator |
-| qwiser/smart-quiz | v0.1.0 | ~400 MB | Quiz engine |
-| qwiser/embeddings-worker | v0.1.0 | ~2.5 GB | GPU embeddings (CUDA) |
-| qwiser/frontend | v0.1.0 | ~100 MB | React frontend |
+See [VERSIONS.txt](../VERSIONS.txt) for the current release. The images are:
+
+| Image | Purpose |
+|-------|---------|
+| `qwiser/public-api` | API Gateway, authentication, ID masking |
+| `qwiser/internal-db` | Database API layer |
+| `qwiser/text-loading` | Content ingestion (PDFs, YouTube, etc.) |
+| `qwiser/other-generation` | AI content generation |
+| `qwiser/topic-modeling` | Knowledge tree coordinator |
+| `qwiser/smart-quiz` | Quiz and exam engine |
+| `qwiser/embeddings-worker` | GPU/CPU embeddings (largest image, ~2.5GB) |
+| `qwiser/frontend` | React web application |
+| `qwiser/cronjobs` | Scheduled maintenance tasks |
 
 ---
 
-## Import Methods
-
-### Decision Table
-
-| Situation | Recommended Method |
-|-----------|-------------------|
-| Access to QWiser source ACR | Method A: Direct Import |
-| Received .tar export files | Method B: Import from Tarball |
-| Building from source | Method C: Build Locally |
-
----
-
-## Method A: Direct Import from QWiser ACR
-
-Contact QWiser to obtain ACR access credentials.
+## Import Process
 
 ### Step 1: Get Your ACR Name
 
+Find your ACR name from the Bicep deployment output:
+
 ```bash
+# From deployment output
 ACR_NAME=$(az deployment sub show \
     --name qwiser-university-YYYYMMDD-HHMMSS \
-    --query "properties.outputs.acrLoginServer.value" -o tsv | cut -d'.' -f1)
+    --query "properties.outputs.acrLoginServer.value" -o tsv | cut -d'.' -f1 | tr -d '\r')
 
 echo "Your ACR: $ACR_NAME"
 ```
 
-### Step 2: Import Images
+Or find it in the Azure Portal under your resource group.
+
+### Step 2: Run the Import Script
+
+Use the provided import script with credentials from QWiser:
+
+**Linux/macOS (Bash):**
 
 ```bash
-SOURCE_REGISTRY="qwiser.azurecr.io"
-SOURCE_USERNAME="provided-by-qwiser"
-SOURCE_PASSWORD="provided-by-qwiser"
+cd scripts
 
-# Import all images
-for IMAGE in public-api internal-db text-loading other-generation topic-modeling smart-quiz embeddings-worker frontend; do
-    echo "Importing $IMAGE..."
-    az acr import \
-        --name $ACR_NAME \
-        --source $SOURCE_REGISTRY/qwiser/$IMAGE:v0.1.0 \
-        --image qwiser/$IMAGE:v0.1.0 \
-        --username $SOURCE_USERNAME \
-        --password $SOURCE_PASSWORD
-done
+# Option A: Using environment variables
+export QWISER_ACR_USERNAME="customer-youruni-pull"
+export QWISER_ACR_PASSWORD="<provided-by-qwiser>"
+./import-images.sh --target-acr $ACR_NAME
+
+# Option B: Using command line arguments
+./import-images.sh \
+    --source-user "customer-youruni-pull" \
+    --source-password "<provided-by-qwiser>" \
+    --target-acr $ACR_NAME
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd scripts
+
+# Option A: Using environment variables
+$env:QWISER_ACR_USERNAME = "customer-youruni-pull"
+$env:QWISER_ACR_PASSWORD = "<provided-by-qwiser>"
+.\import-images.ps1 -TargetAcr $ACR_NAME
+
+# Option B: Using parameters
+.\import-images.ps1 `
+    -SourceUser "customer-youruni-pull" `
+    -SourcePassword "<provided-by-qwiser>" `
+    -TargetAcr $ACR_NAME
+```
+
+**Dry run (see what would happen without importing):**
+
+```bash
+./import-images.sh --target-acr $ACR_NAME --dry-run
 ```
 
 ### Step 3: Verify Import
 
 ```bash
+# List all repositories
 az acr repository list --name $ACR_NAME -o table
 ```
 
 Expected output:
 ```
 Result
----------------------
-qwiser/public-api
-qwiser/internal-db
-qwiser/text-loading
-qwiser/other-generation
-qwiser/topic-modeling
-qwiser/smart-quiz
+------------------------
+qwiser/cronjobs
 qwiser/embeddings-worker
 qwiser/frontend
+qwiser/internal-db
+qwiser/other-generation
+qwiser/public-api
+qwiser/smart-quiz
+qwiser/text-loading
+qwiser/topic-modeling
+```
+
+Verify tags for a specific image:
+```bash
+az acr repository show-tags --name $ACR_NAME --repository qwiser/public-api -o table
 ```
 
 ---
 
-## Method B: Import from Tarball
+## Verify AKS Can Pull Images
 
-If you received exported .tar files:
-
-### Step 1: Login to Your ACR
+The Bicep deployment automatically attaches AKS to ACR. Verify with a test pull:
 
 ```bash
-az acr login --name $ACR_NAME
-```
+# Test pull
+kubectl run test-pull --image=$ACR_NAME.azurecr.io/qwiser/public-api:v1.0.0 --command -- sleep 10
 
-### Step 2: Load and Push Each Image
-
-```bash
-# For each tarball
-for TARBALL in *.tar; do
-    echo "Loading $TARBALL..."
-
-    # Load image to local Docker
-    docker load -i $TARBALL
-
-    # Get the image name from load output
-    # (or use consistent naming: qwiser/<service>:v0.1.0)
-done
-
-# Tag and push to your ACR
-docker tag qwiser/public-api:v0.1.0 $ACR_NAME.azurecr.io/qwiser/public-api:v0.1.0
-docker push $ACR_NAME.azurecr.io/qwiser/public-api:v0.1.0
-
-# Repeat for all images
-```
-
-### Batch Script
-
-```bash
-#!/bin/bash
-ACR_NAME="your-acr-name"
-ACR_SERVER="$ACR_NAME.azurecr.io"
-
-az acr login --name $ACR_NAME
-
-for TARBALL in *.tar; do
-    # Extract service name from tarball (assumes naming: qwiser-<service>-v0.1.0.tar)
-    SERVICE=$(echo $TARBALL | sed 's/qwiser-\(.*\)-v.*/\1/')
-
-    echo "Processing $SERVICE..."
-    docker load -i $TARBALL
-    docker tag qwiser/$SERVICE:v0.1.0 $ACR_SERVER/qwiser/$SERVICE:v0.1.0
-    docker push $ACR_SERVER/qwiser/$SERVICE:v0.1.0
-done
-```
-
----
-
-## Method C: Build from Source
-
-If you have access to QWiser source code:
-
-### Step 1: Clone Repository
-
-```bash
-git clone https://github.com/qwiser/qwiser-university.git
-cd qwiser-university
-```
-
-### Step 2: Build Images
-
-```bash
-ACR_SERVER="$ACR_NAME.azurecr.io"
-
-# Build each service
-for SERVICE in public-api internal-db text-loading other-generation topic-modeling smart-quiz embeddings-worker frontend; do
-    echo "Building $SERVICE..."
-    docker build -t $ACR_SERVER/qwiser/$SERVICE:v0.1.0 ./services/$SERVICE
-done
-```
-
-### Step 3: Push to ACR
-
-```bash
-az acr login --name $ACR_NAME
-
-for SERVICE in public-api internal-db text-loading other-generation topic-modeling smart-quiz embeddings-worker frontend; do
-    echo "Pushing $SERVICE..."
-    docker push $ACR_SERVER/qwiser/$SERVICE:v0.1.0
-done
-```
-
----
-
-## Verify ACR-AKS Integration
-
-The Bicep deployment automatically attaches AKS to ACR. Verify:
-
-```bash
-# Check AKS can pull from ACR
-kubectl run test-pull --image=$ACR_NAME.azurecr.io/qwiser/public-api:v0.1.0 --command -- sleep 10
-
-# Check pod status
+# Check pod status (should be Running, not ImagePullBackOff)
 kubectl get pod test-pull
 
 # Cleanup
@@ -211,61 +148,68 @@ If pull fails with `ImagePullBackOff`:
 
 ```bash
 # Verify ACR attachment
-az aks check-acr --resource-group qwiser-prod-rg --name qwiser-prod-aks --acr $ACR_NAME.azurecr.io
+az aks check-acr \
+    --resource-group <your-resource-group> \
+    --name <your-aks-name> \
+    --acr $ACR_NAME.azurecr.io
 ```
 
 ---
 
 ## Image Tags in K8s Manifests
 
-The K8s manifests use placeholder tags that are replaced during deployment:
+The K8s manifests use placeholder values that `apply.sh` replaces:
 
 ```yaml
-# In manifests:
-image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/public-api:v0.1.0
+# In manifests (before apply.sh):
+image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/public-api:PLACEHOLDER
 
 # After apply.sh substitution:
-image: qwiser-prod-acr.azurecr.io/qwiser/public-api:v0.1.0
+image: youruni-acr.azurecr.io/qwiser/public-api:v1.0.0
 ```
 
-The `apply.sh` script reads `ACR_LOGIN_SERVER` from the qwiser-config ConfigMap and substitutes automatically.
+Image versions are centralized in `k8s/base/kustomization.yaml` under the `images:` section.
 
 ---
 
-## Updating Images
+## Updating to a New Version
 
-To deploy a new version:
+When QWiser releases a new version:
 
-### Step 1: Import New Version
+### Step 1: Update VERSIONS.txt
+
+QWiser will provide an updated `VERSIONS.txt` with new tags.
+
+### Step 2: Re-run Import Script
 
 ```bash
-az acr import \
-    --name $ACR_NAME \
-    --source $SOURCE_REGISTRY/qwiser/public-api:v0.2.0 \
-    --image qwiser/public-api:v0.2.0
+./import-images.sh --target-acr $ACR_NAME
 ```
 
-### Step 2: Update Manifest
+The `--force` flag (used internally) overwrites existing tags if they exist.
 
-Edit the Kustomization or patch to use new tag:
+### Step 3: Update kustomization.yaml
+
+Edit `k8s/base/kustomization.yaml` to use the new tags:
 
 ```yaml
-# kustomization.yaml
 images:
-  - name: qwiser/public-api
-    newTag: v0.2.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/public-api
+    newTag: v1.1.0  # Updated
+  # ... update all images
 ```
 
-### Step 3: Apply Update
+### Step 4: Apply Updates
 
 ```bash
-kubectl apply -k .
+cd k8s/base
+./apply.sh
 ```
 
-Or trigger rolling update:
+Or trigger a rolling update for specific services:
 
 ```bash
-kubectl set image deployment/public-api public-api=$ACR_NAME.azurecr.io/qwiser/public-api:v0.2.0
+kubectl rollout restart deployment/public-api -n qwiser
 ```
 
 ---
@@ -274,15 +218,19 @@ kubectl set image deployment/public-api public-api=$ACR_NAME.azurecr.io/qwiser/p
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| Import fails with 401 | Invalid credentials | Verify source registry credentials |
-| Import fails with 404 | Image doesn't exist | Check exact image name and tag |
-| Pull fails in K8s | ACR not attached to AKS | Run `az aks check-acr` |
-| Slow import | Large image size | Use regional ACR or dedicated bandwidth |
+| `401 Unauthorized` | Invalid or expired credentials | Contact QWiser for new credentials |
+| `404 Not Found` | Image or tag doesn't exist | Verify VERSIONS.txt matches available images |
+| `ImagePullBackOff` in K8s | ACR not attached to AKS | Run `az aks check-acr` |
+| Slow import | Large images (embeddings-worker is ~2.5GB) | Wait patiently, or use dedicated bandwidth |
 
-### Check ACR Logs
+### View Import Logs
+
+If import fails, check detailed error:
 
 ```bash
-az acr task logs --registry $ACR_NAME --run-id <run-id>
+# Azure CLI shows errors inline during import
+# For more detail, check ACR tasks:
+az acr task logs --registry $ACR_NAME
 ```
 
 ### List Tags for an Image
@@ -293,19 +241,12 @@ az acr repository show-tags --name $ACR_NAME --repository qwiser/public-api -o t
 
 ---
 
-## Image Security Scanning
+## Security Notes
 
-ACR has built-in vulnerability scanning (via Microsoft Defender):
-
-```bash
-# View scan results
-az acr vulnerability-assessment show \
-    --registry $ACR_NAME \
-    --repository qwiser/public-api \
-    --name v0.1.0
-```
-
-Address HIGH/CRITICAL vulnerabilities before production deployment.
+- Your credentials are **pull-only** - you cannot push images to QWiser's ACR
+- Credentials are scoped to release images only - debug images are not accessible
+- Store credentials securely - do not commit to version control
+- Credentials expire after 1 year - QWiser will provide renewals
 
 ---
 
