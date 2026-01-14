@@ -34,7 +34,7 @@ Click the button below to deploy QWiser infrastructure to your Azure subscriptio
 - Azure Kubernetes Service (AKS) with system and GPU node pools
 - Azure Container Registry (ACR) for image storage
 - Azure Database for MySQL Flexible Server
-- Azure Cache for Redis
+- Azure Managed Redis
 - Azure Key Vault for secrets
 - Azure App Configuration for centralized config
 - Azure Front Door for global load balancing and WAF
