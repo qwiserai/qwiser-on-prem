@@ -1,0 +1,192 @@
+# =============================================================================
+# QWiser University - Frontend Deployment
+# =============================================================================
+#
+# React SPA served by NGINX container.
+#
+# ARCHITECTURE:
+#   - Ingress routes "/" to this service (all non-API traffic)
+#   - NGINX serves static files from /usr/share/nginx/html
+#   - Client-side routing: NGINX returns index.html for non-asset paths
+#   - Browser calls API via REACT_APP_SERVER_API_URL + /api
+#
+# NGINX HARDENING:
+#   The frontend container's nginx.conf should include:
+#     - server_tokens off;
+#     - X-Frame-Options: SAMEORIGIN
+#     - X-Content-Type-Options: nosniff
+#     - Referrer-Policy: strict-origin-when-cross-origin
+#   These are set in the Dockerfile/nginx.conf, NOT in this manifest.
+#
+# RUNTIME CONFIG:
+#   React apps bake env vars at build time, so we use runtime injection:
+#     1. frontend-env-config ConfigMap contains env-config.js
+#     2. Mounted at /usr/share/nginx/html/env-config.js (overrides built-in)
+#     3. index.html loads env-config.js, sets window._env_
+#     4. configs.ts reads window._env_.REACT_APP_SERVER_API_URL
+#
+# DEPLOYMENT:
+#   Run ./apply.sh - substitutes CUSTOM_DOMAIN and ACR_LOGIN_SERVER placeholders.
+#
+# =============================================================================
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: default
+  labels:
+    app: frontend
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080  # Container listens on 8080 (unprivileged nginx)
+      protocol: TCP
+  selector:
+    app: frontend
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: default
+  labels:
+    app: frontend
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        app.kubernetes.io/name: qwiser
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: qwiser-university
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: sa-qwiser
+
+      # --- Pod Security Context ---
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101      # nginx user in official NGINX image
+        runAsGroup: 101     # nginx group
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: frontend
+          image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/frontend:PLACEHOLDER
+          ports:
+            - containerPort: 8080  # Unprivileged nginx listens on 8080
+              name: http
+              protocol: TCP
+
+          # --- Container Security Context ---
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Note: envFrom is NOT used for React runtime config.
+          # React gets config via env-config.js mounted below.
+          # This envFrom is kept for reference/debugging only.
+          envFrom:
+            - configMapRef:
+                name: qwiser-config
+
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          # Health probes - NGINX returns 200 for /
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Volume mounts
+          volumeMounts:
+            # Runtime config - overrides built-in env-config.js with deployment values
+            - name: env-config
+              mountPath: /usr/share/nginx/html/env-config.js
+              subPath: env-config.js
+              readOnly: true
+            # NGINX needs write access to cache, run, and tmp directories
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        # Runtime config from ConfigMap (substituted by apply.sh)
+        - name: env-config
+          configMap:
+            name: frontend-env-config
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+
+      # Spread pods across nodes for availability
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - frontend
+                topologyKey: "kubernetes.io/hostname"
+
+      # Tolerate brief node issues
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 30
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 30

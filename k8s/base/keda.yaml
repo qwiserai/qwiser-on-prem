@@ -1,0 +1,287 @@
+# =============================================================================
+# QWiser University - KEDA ScaledObjects
+# =============================================================================
+#
+# KEDA autoscaling configuration for university deployment.
+#
+# CHANGES FROM SAAS:
+#   - Removed redis-creds Secret (Azure Managed Redis uses Entra ID auth)
+#   - Removed yt-worker-scaledobject (SaaS-only, not in university)
+#   - Removed stripe-worker-scaledobject (SaaS-only, not in university)
+#   - topic-modeling uses metrics-api scaler (not Redis scaler)
+#   - Other services use CPU/memory triggers (unchanged)
+#
+# AUTHENTICATION:
+#   - metrics-api scaler uses Bearer token from keda-auth-secret
+#   - Secret synced from Key Vault via SecretProviderClass (Phase 5)
+#
+# =============================================================================
+
+# =============================================================================
+# TriggerAuthentication for internal-db Bearer Token
+# =============================================================================
+# The internal-db service exposes /keda/queue-length endpoint that requires
+# Bearer token authentication using the INTERNAL-SECRET-KEY from Key Vault.
+#
+# NOTE: The keda-auth-secret K8s Secret must exist before KEDA can use this.
+# It is created by the SecretProviderClass (secretproviderclass.yaml) which
+# syncs INTERNAL-SECRET-KEY from Key Vault into the cluster.
+# =============================================================================
+
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-internal-db-auth
+  namespace: default
+spec:
+  secretTargetRef:
+    - parameter: token
+      name: keda-auth-secret
+      key: internal-secret-key
+
+---
+# =============================================================================
+# Topic-Modeling ScaledObject
+# =============================================================================
+#
+# SCALING PHILOSOPHY FOR UNIVERSITY DEPLOYMENTS:
+#
+# Unlike SaaS where users expect instant results, university instructors:
+# - Prepare courses weeks/months before semester
+# - Don't mind waiting 15-30 minutes for a knowledge tree
+# - Understand queuing (other instructors at their institution are also working)
+#
+# The UI shows queue position and estimated wait time, setting proper expectations.
+#
+# SCALE-UP STRATEGY (Very Conservative):
+# - Scale up slowly - queue visibility means users aren't frustrated by waiting
+# - Avoid spinning up pods for short bursts that existing replicas can handle
+# - Wait 15+ minutes of sustained queue pressure before adding capacity
+# - Prioritize cost-efficiency over instant processing
+#
+# SCALE-DOWN STRATEGY (Safe):
+# - Long cooldown (24h) ensures any in-progress task completes before scale-down
+# - Topic-modeling tasks can take unpredictable time (huge corpora = hours)
+# - We cannot use terminationGracePeriodSeconds for unbounded task durations
+# - Instead, we guarantee: cooldownPeriod > max_possible_task_duration
+# - 24 hours is a safe upper bound for any realistic academic corpus
+#
+# METRICS-API SCALER:
+# - Uses internal-db's /keda/queue-length endpoint instead of direct Redis access
+# - Bypasses Redis auth complexity (Azure Managed Redis + Entra ID)
+# - Returns {"value": <queue_length>} format expected by KEDA
+#
+# =============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: topic-modeling-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: topic-modeling
+
+  # Minimum replicas - always have at least this many ready
+  # Adjust based on university size (small=1, medium=2, large=3)
+  minReplicaCount: 2
+
+  # Maximum replicas - cap to control costs
+  # Adjust based on university budget and expected peak load
+  maxReplicaCount: 6
+
+  # How often KEDA checks the queue length
+  pollingInterval: 30
+
+  # CRITICAL: Safe scale-down cooldown
+  # Wait 24 hours after queue empties before scaling down.
+  # This ensures any in-progress task (even multi-hour jobs) completes.
+  # Only after 24h of zero queue activity do we scale down.
+  cooldownPeriod: 86400  # 24 hours in seconds
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        # -----------------------------------------------------------------
+        # SCALE DOWN: Slow and safe
+        # -----------------------------------------------------------------
+        scaleDown:
+          stabilizationWindowSeconds: 300  # 5 min stabilization
+          policies:
+            # Remove at most 1 pod per 10 minutes
+            - type: Pods
+              value: 1
+              periodSeconds: 600
+
+        # -----------------------------------------------------------------
+        # SCALE UP: Very Conservative
+        # -----------------------------------------------------------------
+        # University instructors see queue position in UI and understand
+        # they're waiting for other jobs. No need to rush.
+        scaleUp:
+          # Wait 15 minutes of sustained queue pressure before scaling up.
+          # This filters out:
+          # - Brief spikes that clear on their own
+          # - Bursts that existing replicas can absorb
+          # - Temporary queue buildup during normal processing
+          stabilizationWindowSeconds: 900  # 15 minutes
+          policies:
+            # Add at most 1 pod per 15 minutes
+            # Very gradual - we'd rather queue than overprovision
+            - type: Pods
+              value: 1
+              periodSeconds: 900
+
+  triggers:
+    - type: metrics-api
+      metadata:
+        # Target: 1 queue item per replica (tasks are slow/resource-intensive)
+        targetValue: "4"
+        # Queue name includes environment suffix from CONFIG_LABEL
+        # See QWiserCommons/worker/utils.py:generate_keys() for mapping:
+        #   production -> :prod, staging -> :staging, local -> :local
+        url: "http://internal-db.default.svc.cluster.local:8000/keda/queue-length?queue_name=tpm-controller:queue:list:prod"
+        valueLocation: "value"
+        authMode: "bearer"
+      authenticationRef:
+        name: keda-internal-db-auth
+
+---
+# =============================================================================
+# CPU/Memory-Based ScaledObjects
+# =============================================================================
+# These services scale based on resource utilization, not queue depth.
+# No changes needed from SaaS - they don't use Redis triggers.
+# =============================================================================
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: internal-db-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: internal-db
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  cooldownPeriod: 300
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "75"
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "75"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: other-generation-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: other-generation
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  cooldownPeriod: 300
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "75"
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "75"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: public-api-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: public-api
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  cooldownPeriod: 300
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "75"
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "75"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: text-loading-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: text-loading
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  cooldownPeriod: 300
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "75"
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "75"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: smart-quiz-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: smart-quiz
+    apiVersion: apps/v1
+    kind: Deployment
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  cooldownPeriod: 60
+  pollingInterval: 15
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 60
+        scaleUp:
+          stabilizationWindowSeconds: 60
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "80"
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "80"

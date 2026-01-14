@@ -1,0 +1,36 @@
+# =============================================================================
+# QWiser University - Frontend Runtime Configuration
+# =============================================================================
+#
+# This ConfigMap provides runtime configuration for the React frontend.
+# It's mounted as /usr/share/nginx/html/env-config.js and loaded by index.html.
+#
+# The REPLACE_WITH_CUSTOM_DOMAIN placeholder is substituted by apply.sh
+# using values from the qwiser-config ConfigMap (created by Bicep).
+#
+# WHY THIS EXISTS:
+#   React apps bake environment variables at build time (npm run build).
+#   To avoid rebuilding images per deployment, we use runtime config:
+#     1. index.html loads env-config.js before the React bundle
+#     2. env-config.js sets window._env_ with deployment-specific values
+#     3. React code reads window._env_ via configs.ts
+#
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-env-config
+  namespace: default
+  labels:
+    app: frontend
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: frontend-config
+    app.kubernetes.io/part-of: qwiser-university
+data:
+  env-config.js: |
+    // Runtime configuration - injected by K8s ConfigMap
+    // DO NOT EDIT - this file is managed by the deployment process
+    window._env_ = {
+        REACT_APP_SERVER_API_URL: "https://REPLACE_WITH_CUSTOM_DOMAIN",
+    };

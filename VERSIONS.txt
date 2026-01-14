@@ -1,0 +1,13 @@
+# QWiser University Release v1.0.0
+# Generated: 2026-01-14
+# Use with: import-images.sh
+
+qwiser/public-api:v1.0.0
+qwiser/internal-db:v1.0.0
+qwiser/other-generation:v1.0.0
+qwiser/text-loading:v1.0.0
+qwiser/topic-modeling:v1.0.0
+qwiser/smart-quiz:v1.0.0
+qwiser/embeddings-worker:v1.0.0
+qwiser/frontend:v1.0.0
+qwiser/cronjobs:v1.0.0

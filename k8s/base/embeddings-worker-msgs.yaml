@@ -1,0 +1,202 @@
+# =============================================================================
+# QWiser University - Embeddings Worker (Messages Only)
+# =============================================================================
+#
+# Dedicated message embeddings worker - always-on "fast lane" for chat messages.
+#
+# ARCHITECTURE:
+#   - MESSAGES_EMBEDDER=true: Processes ONLY message embeddings queue
+#   - Always-on (minReplicas=1) to avoid GPU cold-start latency for students
+#   - Does NOT access Qdrant - writes embeddings to Azure Blob only
+#   - Uses GPU node pool for fast inference
+#
+# WHY DEDICATED:
+#   - Messages are small and fast to embed
+#   - Text embeddings can take minutes for large documents
+#   - If mixed, a large text job blocks messages → visible chat latency
+#   - Dedicated worker ensures students never wait for GPU warmup
+#
+# SCALING:
+#   - KEDA ScaledObject with min=1, max=1 (conservative start)
+#   - IT can increase maxReplicas later without recreating ScaledObject
+#
+# =============================================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embeddings-worker-msgs
+  namespace: default
+  labels:
+    app: embeddings-worker-msgs
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: embeddings-worker
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  # Controlled by KEDA ScaledObject (min=1, max=1)
+  replicas: 1
+  selector:
+    matchLabels:
+      app: embeddings-worker-msgs
+  template:
+    metadata:
+      labels:
+        app: embeddings-worker-msgs
+        app.kubernetes.io/name: qwiser
+        app.kubernetes.io/component: embeddings-worker
+        app.kubernetes.io/part-of: qwiser-university
+        azure.workload.identity/use: "true"
+        # NOTE: No qwiser.io/qdrant-access label - this worker doesn't use Qdrant
+    spec:
+      serviceAccountName: sa-qwiser
+
+      # --- Pod Security Context ---
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      # GPU node selector
+      # Uses AKS automatic label (kubernetes.azure.com/agentpool)
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.azure.com/agentpool: gpu
+
+      # Tolerate GPU node taints
+      tolerations:
+        - key: "sku"
+          operator: "Equal"
+          value: "gpu"
+          effect: "NoSchedule"
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      containers:
+        - name: embeddings-worker-msgs
+          image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/embeddings-worker:PLACEHOLDER
+
+          # --- Container Security Context ---
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Environment from ConfigMap + worker-specific settings
+          envFrom:
+            - configMapRef:
+                name: qwiser-config
+
+          env:
+            # Worker mode: messages only (no text embeddings)
+            - name: MESSAGES_EMBEDDER
+              value: "true"
+            - name: ENVIRONMENT
+              value: "PRODUCTION"
+            # Config refresh settings
+            - name: CONFIG_REFRESH_INTERVAL
+              value: "45"
+            - name: CONFIG_SENTINEL_KEY
+              value: "sentinel"
+            # ML model cache paths (mounted from Azure Files PVC)
+            - name: FASTEMBED_CACHE_PATH
+              value: "/mnt/models/fastembed"
+            - name: HF_HOME
+              value: "/mnt/models/huggingface"
+            - name: SENTENCE_TRANSFORMERS_HOME
+              value: "/mnt/models/sentence_transformers"
+
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "8Gi"
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "4000m"
+              memory: "16Gi"
+              nvidia.com/gpu: 1
+
+          # Health probes
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 30
+
+          volumeMounts:
+            # Writable directories
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /home/appuser/.cache
+            # ML models (read-only from Azure Files)
+            - name: ml-models
+              mountPath: /mnt/models
+              readOnly: true
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        - name: ml-models
+          persistentVolumeClaim:
+            claimName: ml-models-pvc
+            readOnly: true
+
+---
+# =============================================================================
+# KEDA ScaledObject - Future-Proofed
+# =============================================================================
+# Starts with min=max=1. IT can increase maxReplicas later without recreating.
+# =============================================================================
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: embeddings-worker-msgs-scaledobject
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: embeddings-worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: embeddings-worker-msgs
+
+  # Always-on - students never wait for GPU cold start
+  minReplicaCount: 1
+
+  # Conservative start - IT can increase later
+  maxReplicaCount: 1
+
+  pollingInterval: 30
+  cooldownPeriod: 300
+
+  triggers:
+    - type: metrics-api
+      metadata:
+        # Scale up when 5+ messages backed up (for future when max > 1)
+        targetValue: "5"
+        url: "http://internal-db.default.svc.cluster.local:8000/keda/queue-length?queue_name=embeddings-worker-msgs:queue:list:prod"
+        valueLocation: "value"
+        authMode: "bearer"
+      authenticationRef:
+        name: keda-internal-db-auth

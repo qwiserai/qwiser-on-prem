@@ -1,0 +1,22 @@
+apiVersion: "autoscaling.k8s.io/v1"
+kind: VerticalPodAutoscaler
+metadata:
+  name: internal-db-vpa
+  namespace: default
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: internal-db
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        minAllowed:
+          memory: 200Mi
+          cpu: 300m
+        maxAllowed:
+          memory: 1Gi
+          cpu: 1000m
+        controlledResources: ["cpu", "memory"]
+  updatePolicy:
+    updateMode: "Off"

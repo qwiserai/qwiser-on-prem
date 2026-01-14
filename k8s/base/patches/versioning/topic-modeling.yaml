@@ -1,0 +1,22 @@
+# =============================================================================
+# QWiser University - topic-modeling Versioning Patch
+# =============================================================================
+#
+# Image placeholder is substituted by apply.sh using ACR_LOGIN_SERVER from ConfigMap.
+# Image tag is overridden by kustomization.yaml images section.
+# Run: ./apply.sh
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: topic-modeling
+spec:
+  template:
+    spec:
+      containers:
+        - name: topic-modeling
+          image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/topic-modeling:PLACEHOLDER
+          ports:
+            - containerPort: 8000

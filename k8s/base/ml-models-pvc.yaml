@@ -1,0 +1,115 @@
+# =============================================================================
+# QWiser University - ML Models PersistentVolume and PVC
+# =============================================================================
+#
+# Pre-provisioned Azure Files share for ML models (fastembed, HuggingFace).
+#
+# SETUP:
+#   1. Bicep creates Storage Account with File Share "ml-models"
+#   2. IT downloads models from HuggingFace (see ML_MODELS_SETUP.md)
+#   3. IT uploads models to Azure Files share
+#   4. This PV/PVC mounts the share read-only into embeddings-worker pods
+#
+# WHY PRE-PROVISIONED:
+#   - Models (~2-3GB) would download at runtime, breaking readOnlyRootFilesystem
+#   - Universities may block outbound internet from pods
+#   - One-time manual upload is simpler than K8s Job (works in all environments)
+#
+# ACCESS MODE:
+#   - ReadOnlyMany - multiple pods can mount simultaneously (read-only)
+#   - No writes needed - models are static after initial upload
+#
+# DEPLOYMENT:
+#   Run ./apply.sh - substitutes STORAGE_ACCOUNT_NAME and RESOURCE_GROUP placeholders.
+#   The storage-account-key Secret must exist (created by seed-keyvault.ps1 or manually).
+#
+# =============================================================================
+
+---
+# =============================================================================
+# Secret for Azure Files Authentication
+# =============================================================================
+# Contains storage account name and key for mounting Azure Files.
+# Created by:
+#   - Bicep outputs storage account name
+#   - seed-keyvault.ps1 creates the key in Key Vault
+#   - CSI Driver or manual Secret creation syncs key to cluster
+#
+# IMPORTANT: This Secret must exist before the PV can be used.
+# IT can create it manually with:
+#   kubectl create secret generic azure-files-secret \
+#     --from-literal=azurestorageaccountname=<storage-account-name> \
+#     --from-literal=azurestorageaccountkey=<storage-account-key>
+# =============================================================================
+
+# NOTE: The Secret is NOT defined here - it must be created separately
+# either via CSI SecretProviderClass or manually by IT.
+# See ML_MODELS_SETUP.md for instructions.
+
+---
+# =============================================================================
+# PersistentVolume - Static Provisioning
+# =============================================================================
+# Points to pre-created Azure Files share "ml-models".
+# Uses Azure Files CSI driver for mounting.
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ml-models-pv
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: storage
+spec:
+  capacity:
+    storage: 10Gi  # Adjust based on actual model sizes
+  accessModes:
+    - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain  # Don't delete Azure Files on PV deletion
+  storageClassName: ""  # Static provisioning - no StorageClass
+  mountOptions:
+    - dir_mode=0555
+    - file_mode=0444
+    - uid=1000
+    - gid=1000
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+  csi:
+    driver: file.csi.azure.com
+    readOnly: true
+    volumeHandle: ml-models-unique-id  # Unique identifier for this PV
+    volumeAttributes:
+      # Azure Files share name (created by Bicep)
+      shareName: ml-models
+      # Storage account name - substituted by apply.sh
+      storageAccount: REPLACE_WITH_STORAGE_ACCOUNT_NAME
+    nodeStageSecretRef:
+      name: azure-files-secret
+      namespace: default
+
+---
+# =============================================================================
+# PersistentVolumeClaim
+# =============================================================================
+# Binds to the ml-models-pv PersistentVolume.
+# Used by embeddings-worker-msgs and embeddings-worker-hybrid.
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-models-pvc
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: ""  # Static provisioning - bind to specific PV
+  volumeName: ml-models-pv  # Bind to our pre-created PV
+  resources:
+    requests:
+      storage: 10Gi  # Must match PV capacity

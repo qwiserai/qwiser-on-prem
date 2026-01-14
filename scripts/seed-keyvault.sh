@@ -1,0 +1,180 @@
+#!/bin/bash
+# ==============================================================================
+# seed-keyvault.sh - Seeds remaining secrets in Azure Key Vault
+# ==============================================================================
+# This script creates secrets that are NOT handled by Bicep deployment:
+# - Auto-generated: JWT-SECRET, INTERNAL-SECRET-KEY, QDRANT-API-KEY
+# - Placeholders: AI-FOUNDRY-API-KEY, LTI-PRIVATE-KEY
+#
+# Secrets handled by Bicep (DO NOT seed here):
+# - DB-USER, DB-PASSWORD (from mysql.bicep)
+# - STORAGE-ACCOUNT-KEY, STORAGE-CONNECTION-STRING (from storage-account.bicep)
+# - APPLICATIONINSIGHTS-CONNECTION-STRING (from monitoring.bicep)
+#
+# Prerequisites:
+# - Azure CLI installed and logged in
+# - Key Vault Secrets Officer role on the Key Vault
+# - Network access to Key Vault (Cloud Shell with VNet injection or VPN)
+#
+# Usage:
+#   ./seed-keyvault.sh -k <keyvault-name> [-f]
+#
+# Options:
+#   -k, --keyvault-name   Name of the Key Vault (required)
+#   -f, --force           Overwrite existing secrets
+#   -h, --help            Show this help message
+# ==============================================================================
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+GRAY='\033[0;90m'
+NC='\033[0m' # No Color
+
+# Default values
+KEYVAULT_NAME=""
+FORCE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -k|--keyvault-name)
+            KEYVAULT_NAME="$2"
+            shift 2
+            ;;
+        -f|--force)
+            FORCE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 -k <keyvault-name> [-f]"
+            echo ""
+            echo "Options:"
+            echo "  -k, --keyvault-name   Name of the Key Vault (required)"
+            echo "  -f, --force           Overwrite existing secrets"
+            echo "  -h, --help            Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Validate required parameters
+if [[ -z "$KEYVAULT_NAME" ]]; then
+    echo -e "${RED}Error: --keyvault-name is required${NC}"
+    echo "Usage: $0 -k <keyvault-name> [-f]"
+    exit 1
+fi
+
+echo -e "${CYAN}======================================${NC}"
+echo -e "${CYAN}QWiser Key Vault Secret Seeding${NC}"
+echo -e "${CYAN}======================================${NC}"
+echo ""
+echo "Key Vault: $KEYVAULT_NAME"
+echo "Force overwrite: $FORCE"
+echo ""
+
+# Function to check if secret exists
+secret_exists() {
+    local vault_name=$1
+    local secret_name=$2
+    az keyvault secret show --vault-name "$vault_name" --name "$secret_name" --query "name" -o tsv 2>/dev/null
+}
+
+# Function to generate cryptographically secure random string (hex)
+generate_random_string() {
+    local length=${1:-64}
+    openssl rand -hex $((length / 2))
+}
+
+# Function to set a secret
+set_secret() {
+    local vault_name=$1
+    local secret_name=$2
+    local secret_value=$3
+    local description=$4
+
+    local exists
+    exists=$(secret_exists "$vault_name" "$secret_name")
+
+    if [[ -n "$exists" ]] && [[ "$FORCE" != "true" ]]; then
+        echo -e "  ${YELLOW}[SKIP]${NC} $secret_name - already exists (use -f to overwrite)"
+        return 0
+    fi
+
+    local action
+    if [[ -n "$exists" ]]; then
+        action="Updating"
+    else
+        action="Creating"
+    fi
+
+    echo -e "  ${GRAY}[$action] $secret_name - $description${NC}"
+
+    az keyvault secret set \
+        --vault-name "$vault_name" \
+        --name "$secret_name" \
+        --value "$secret_value" \
+        --output none
+
+    echo -e "  ${GREEN}[OK]${NC} $secret_name"
+}
+
+# ============================================================================
+# Auto-Generated Secrets
+# ============================================================================
+
+echo ""
+echo "Auto-Generated Secrets:"
+echo "------------------------"
+
+# JWT-SECRET - Used for signing JWT tokens
+jwt_secret=$(generate_random_string 64)
+set_secret "$KEYVAULT_NAME" "JWT-SECRET" "$jwt_secret" "JWT signing secret (auto-generated)"
+
+# INTERNAL-SECRET-KEY - Used for internal service authentication
+internal_secret=$(generate_random_string 64)
+set_secret "$KEYVAULT_NAME" "INTERNAL-SECRET-KEY" "$internal_secret" "Internal service auth key (auto-generated)"
+
+# QDRANT-API-KEY - Used for Qdrant vector database authentication
+qdrant_api_key=$(generate_random_string 64)
+set_secret "$KEYVAULT_NAME" "QDRANT-API-KEY" "$qdrant_api_key" "Qdrant API key (auto-generated)"
+
+# ============================================================================
+# Placeholder Secrets (IT must update after deployment)
+# ============================================================================
+
+echo ""
+echo "Placeholder Secrets (IT must update these):"
+echo "--------------------------------------------"
+
+# AI-FOUNDRY-API-KEY - IT configures after Azure AI deployment
+set_secret "$KEYVAULT_NAME" "AI-FOUNDRY-API-KEY" \
+    "PLACEHOLDER-UPDATE-AFTER-AI-DEPLOYMENT" \
+    "Azure AI Foundry API key (IT must update)"
+
+# LTI-PRIVATE-KEY - IT configures for LMS integration
+set_secret "$KEYVAULT_NAME" "LTI-PRIVATE-KEY" \
+    "PLACEHOLDER-UPDATE-FOR-LTI-INTEGRATION" \
+    "LTI 1.3 private key (IT must update)"
+
+# ============================================================================
+# Summary
+# ============================================================================
+
+echo ""
+echo -e "${CYAN}======================================${NC}"
+echo -e "${GREEN}Key Vault seeding complete!${NC}"
+echo -e "${CYAN}======================================${NC}"
+echo ""
+echo "Next steps:"
+echo -e "  ${GRAY}1. Update AI-FOUNDRY-API-KEY after deploying Azure AI Foundry${NC}"
+echo -e "  ${GRAY}2. Update LTI-PRIVATE-KEY when configuring LMS integration${NC}"
+echo ""

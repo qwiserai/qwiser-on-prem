@@ -1,0 +1,235 @@
+# =============================================================================
+# QWiser University - Embeddings Worker (Hybrid - Scale to Zero)
+# =============================================================================
+#
+# Elastic capacity worker for both text and message embeddings.
+#
+# ARCHITECTURE:
+#   - HYBRID_MODE=true: Processes BOTH queues with message priority
+#   - Scale-to-zero when idle (cost optimization)
+#   - Scales up for text embeddings and message overflow
+#   - DOES access Qdrant for upserting text embeddings
+#   - Uses GPU node pool for fast inference
+#
+# WHY HYBRID:
+#   - During exam periods: Helps message worker when queue backs up
+#   - During course prep: Handles bulk text embeddings
+#   - Cost-effective: Scales to zero when both queues empty
+#
+# PRIORITY:
+#   - BLPOP with multiple keys processes message queue first
+#   - Even when helping with texts, new messages get priority
+#
+# =============================================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embeddings-worker-hybrid
+  namespace: default
+  labels:
+    app: embeddings-worker-hybrid
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: embeddings-worker
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  # Controlled by KEDA ScaledObject (min=0, max=3)
+  replicas: 0
+  selector:
+    matchLabels:
+      app: embeddings-worker-hybrid
+  template:
+    metadata:
+      labels:
+        app: embeddings-worker-hybrid
+        app.kubernetes.io/name: qwiser
+        app.kubernetes.io/component: embeddings-worker
+        app.kubernetes.io/part-of: qwiser-university
+        azure.workload.identity/use: "true"
+        # REQUIRED: Allows network policy to permit Qdrant access
+        qwiser.io/qdrant-access: "true"
+    spec:
+      serviceAccountName: sa-qwiser
+
+      # --- Pod Security Context ---
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      # GPU node selector
+      # Uses AKS automatic label (kubernetes.azure.com/agentpool)
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.azure.com/agentpool: gpu
+
+      # Tolerate GPU node taints
+      tolerations:
+        - key: "sku"
+          operator: "Equal"
+          value: "gpu"
+          effect: "NoSchedule"
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      containers:
+        - name: embeddings-worker-hybrid
+          image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/embeddings-worker:PLACEHOLDER
+
+          # --- Container Security Context ---
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Environment from ConfigMap + worker-specific settings
+          envFrom:
+            - configMapRef:
+                name: qwiser-config
+
+          env:
+            # Worker mode: hybrid (both queues with message priority)
+            - name: HYBRID_MODE
+              value: "true"
+            - name: ENVIRONMENT
+              value: "PRODUCTION"
+            # Config refresh settings
+            - name: CONFIG_REFRESH_INTERVAL
+              value: "45"
+            - name: CONFIG_SENTINEL_KEY
+              value: "sentinel"
+            # ML model cache paths (mounted from Azure Files PVC)
+            - name: FASTEMBED_CACHE_PATH
+              value: "/mnt/models/fastembed"
+            - name: HF_HOME
+              value: "/mnt/models/huggingface"
+            - name: SENTENCE_TRANSFORMERS_HOME
+              value: "/mnt/models/sentence_transformers"
+
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "8Gi"
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "4000m"
+              memory: "16Gi"
+              nvidia.com/gpu: 1
+
+          # Health probes
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 30
+
+          volumeMounts:
+            # Writable directories
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /home/appuser/.cache
+            # ML models (read-only from Azure Files)
+            - name: ml-models
+              mountPath: /mnt/models
+              readOnly: true
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        - name: ml-models
+          persistentVolumeClaim:
+            claimName: ml-models-pvc
+            readOnly: true
+
+---
+# =============================================================================
+# KEDA ScaledObject - Elastic Scaling
+# =============================================================================
+# Scales based on BOTH queues:
+#   - Text queue: 1 item = 1 worker (texts are slow)
+#   - Message queue: 5 items = help needed (overflow from dedicated worker)
+# =============================================================================
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: embeddings-worker-hybrid-scaledobject
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: embeddings-worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: embeddings-worker-hybrid
+
+  # Scale to zero when both queues empty (cost optimization)
+  minReplicaCount: 0
+
+  # Elastic capacity - GPU is expensive, cap at 3
+  maxReplicaCount: 3
+
+  pollingInterval: 30
+
+  # Wait 10 minutes after queue empties before scaling down
+  # Gives time for more work to arrive without cold-start penalty
+  cooldownPeriod: 600
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 300
+        scaleUp:
+          # Moderate scale-up - don't over-provision GPUs
+          stabilizationWindowSeconds: 120
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+
+  triggers:
+    # Text queue - primary responsibility (slow, resource-intensive)
+    - type: metrics-api
+      metadata:
+        targetValue: "1"  # 1 text item = 1 worker
+        url: "http://internal-db.default.svc.cluster.local:8000/keda/queue-length?queue_name=embeddings-worker:queue:list:prod"
+        valueLocation: "value"
+        authMode: "bearer"
+      authenticationRef:
+        name: keda-internal-db-auth
+
+    # Message queue - overflow help (when dedicated worker is at capacity)
+    - type: metrics-api
+      metadata:
+        targetValue: "5"  # Only scale when 5+ messages backed up
+        url: "http://internal-db.default.svc.cluster.local:8000/keda/queue-length?queue_name=embeddings-worker-msgs:queue:list:prod"
+        valueLocation: "value"
+        authMode: "bearer"
+      authenticationRef:
+        name: keda-internal-db-auth

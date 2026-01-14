@@ -1,0 +1,201 @@
+# =============================================================================
+# QWiser University - Kubernetes CronJobs
+# =============================================================================
+#
+# Scheduled maintenance tasks using dedicated cronjobs image.
+#
+# IMAGE: qwiser.azurecr.io/qwiser/cronjobs:{version} (Nuitka-compiled)
+# ENTRYPOINT: python -m cronjobs run <task>
+#
+# JOBS:
+#   1. redis-cleanup - Cleans expired Redis keys (every 10 minutes)
+#   2. embedding-check - Deletes orphan vectors in Qdrant (daily at 3 AM)
+#
+# =============================================================================
+
+---
+# =============================================================================
+# CronJob: Redis Cleanup
+# =============================================================================
+# Cleans up expired Redis keys that may accumulate from failed operations.
+# Runs every 10 minutes.
+# Connections: Redis only
+# =============================================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-cleanup
+  namespace: default
+  labels:
+    app: cronjobs
+    cronjob: redis-cleanup
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: cronjobs
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid  # Don't run if previous instance still running
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300  # If missed by 5 min, skip
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600  # Kill after 10 minutes
+      template:
+        metadata:
+          labels:
+            app: cronjobs
+            cronjob: redis-cleanup
+            app.kubernetes.io/part-of: qwiser-university
+            azure.workload.identity/use: "true"
+            # No Qdrant access needed
+        spec:
+          serviceAccountName: sa-qwiser
+          restartPolicy: OnFailure
+
+          # --- Pod Security Context ---
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+
+          containers:
+            - name: redis-cleanup
+              image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/cronjobs:PLACEHOLDER
+              command: ["python", "-m", "cronjobs", "run", "redis-cleanup"]
+
+              # --- Container Security Context ---
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+
+              envFrom:
+                - configMapRef:
+                    name: qwiser-config
+
+              env:
+                - name: ENVIRONMENT
+                  value: "PRODUCTION"
+                - name: CONFIG_REFRESH_INTERVAL
+                  value: "45"
+                - name: CONFIG_SENTINEL_KEY
+                  value: "sentinel"
+
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+
+          volumes:
+            - name: tmp
+              emptyDir: {}
+
+---
+# =============================================================================
+# CronJob: Embedding Check
+# =============================================================================
+# Detects and deletes orphan vectors in Qdrant (vectors without corresponding
+# database records). Runs daily at 3 AM.
+# Connections: MySQL (direct) + Qdrant
+# =============================================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: embedding-check
+  namespace: default
+  labels:
+    app: cronjobs
+    cronjob: embedding-check
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: cronjobs
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  schedule: "0 3 * * *"  # 3 AM daily
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600  # If missed by 1 hour, skip
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 7200  # Kill after 2 hours (can be slow for large DBs)
+      template:
+        metadata:
+          labels:
+            app: cronjobs
+            cronjob: embedding-check
+            app.kubernetes.io/part-of: qwiser-university
+            azure.workload.identity/use: "true"
+            # REQUIRED: Allows network policy to permit Qdrant access
+            qwiser.io/qdrant-access: "true"
+        spec:
+          serviceAccountName: sa-qwiser
+          restartPolicy: OnFailure
+
+          # --- Pod Security Context ---
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+
+          containers:
+            - name: embedding-check
+              image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/cronjobs:PLACEHOLDER
+              command: ["python", "-m", "cronjobs", "run", "embedding-check"]
+
+              # --- Container Security Context ---
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+
+              envFrom:
+                - configMapRef:
+                    name: qwiser-config
+
+              env:
+                - name: ENVIRONMENT
+                  value: "PRODUCTION"
+                - name: CONFIG_REFRESH_INTERVAL
+                  value: "45"
+                - name: CONFIG_SENTINEL_KEY
+                  value: "sentinel"
+
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "2Gi"
+
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+
+          volumes:
+            - name: tmp
+              emptyDir: {}

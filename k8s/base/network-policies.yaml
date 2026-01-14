@@ -1,0 +1,759 @@
+# =============================================================================
+# QWiser University - Network Policies (Cilium Compatible)
+# =============================================================================
+#
+# Defense-in-depth network segmentation for university deployment.
+# Compatible with Cilium CNI (Azure CNI with Cilium overlay).
+#
+# STRUCTURE:
+#   1. Default deny all ingress/egress for default namespace
+#   2. Common egress for all QWiser pods (DNS, App Config, Key Vault)
+#   3. Per-service policies for specific communication patterns
+#   4. Qdrant-specific policy (blocks P2P port 6335)
+#
+# PREREQUISITES:
+#   - AKS with Azure CNI + Cilium overlay (networkProfile in aks.bicep)
+#   - Network policies enabled on AKS cluster
+#   - Label qwiser.io/qdrant-access: "true" on pods needing Qdrant access
+#
+# NOTES:
+#   - Egress to Azure services uses CIDR 0.0.0.0/0 on port 443 because:
+#     (a) Azure Monitor/App Insights uses PUBLIC endpoints (publicNetworkAccess: Enabled)
+#     (b) Azure OpenAI is university-managed and may be public or in a different VNet
+#     Private Endpoints for Key Vault, App Config, Storage, MySQL, Redis resolve to
+#     VNet IPs via Private DNS - the 0.0.0.0/0 is broader but required for (a) and (b).
+#   - MySQL/Redis/Storage/etc. all accessed via Private Endpoints
+#
+# TIGHTENING PATH (for state-actor threat model):
+#   To eliminate 0.0.0.0/0 egress, implement these changes:
+#   1. Azure Monitor Private Link Scope (AMPLS):
+#      - Deploy privatelink.monitor.azure.com, privatelink.oms.opinsights.azure.com,
+#        privatelink.ods.opinsights.azure.com, privatelink.agentsvc.azure-automation.net
+#      - Set publicNetworkAccessForIngestion: 'Disabled' in monitoring.bicep
+#      - App Insights telemetry then routes through VNet
+#   2. Azure OpenAI Private Endpoint:
+#      - University deploys Azure OpenAI with PE in same VNet or peered VNet
+#      - Add privatelink.openai.azure.com DNS zone
+#      - Update ai:*:endpoint configs to use private FQDN
+#   3. Update this policy:
+#      - Replace 0.0.0.0/0 with VNet CIDR (10.0.0.0/16) for port 443
+#      - If Azure OpenAI is in peered VNet, add that CIDR too
+#   See: https://learn.microsoft.com/en-us/azure/azure-monitor/logs/private-link-security
+#
+# =============================================================================
+
+---
+# =============================================================================
+# Default Deny All - Default Namespace
+# =============================================================================
+# Blocks all ingress and egress traffic by default.
+# All pods must have explicit allow policies.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector: {}  # Applies to all pods in namespace
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# =============================================================================
+# Common Egress - All QWiser Pods
+# =============================================================================
+# Allows egress that ALL QWiser services need:
+#   - DNS (kube-dns)
+#   - Azure App Configuration (443)
+#   - Azure Key Vault (443)
+#   - Azure Monitor / App Insights (443)
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qwiser-common-egress
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: qwiser-university
+  policyTypes:
+    - Egress
+  egress:
+    # DNS - Required for all name resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53  # Large DNS responses use TCP
+
+    # HTTPS to Azure services - see TIGHTENING PATH in header for elimination plan
+    # Required for: Azure Monitor (public), Azure OpenAI (external), Private Endpoints (VNet)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+# =============================================================================
+# NGINX Ingress Controller - Ingress
+# =============================================================================
+# Allows Front Door traffic to NGINX Ingress Controller.
+# NGINX is in ingress-nginx namespace, not default.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nginx-ingress
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Azure Front Door (via Private Link Service)
+    # Traffic comes from within the VNet (PLS endpoint)
+    - ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Forward to QWiser services in default namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 8000  # public-api, internal-db, etc.
+        - protocol: TCP
+          port: 80    # frontend
+
+---
+# =============================================================================
+# public-api - Ingress and Egress
+# =============================================================================
+# API gateway - accepts traffic from NGINX, calls internal services + Qdrant.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: public-api-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: public-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # From NGINX Ingress Controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Internal services
+    - to:
+        - podSelector:
+            matchLabels:
+              app: internal-db
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: other-generation
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: topic-modeling
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: smart-quiz
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: text-loading
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Qdrant (REST + gRPC)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+        - protocol: TCP
+          port: 6334
+
+---
+# =============================================================================
+# internal-db - Ingress and Egress
+# =============================================================================
+# Database abstraction layer - accepts from public-api, cronjobs, smart-quiz.
+# Connects to MySQL (via PE) and Redis.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: internal-db-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: internal-db
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # From public-api
+    - from:
+        - podSelector:
+            matchLabels:
+              app: public-api
+      ports:
+        - protocol: TCP
+          port: 8000
+    # From smart-quiz
+    - from:
+        - podSelector:
+            matchLabels:
+              app: smart-quiz
+      ports:
+        - protocol: TCP
+          port: 8000
+    # From cronjobs (embedding-check needs DB access)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cronjobs
+      ports:
+        - protocol: TCP
+          port: 8000
+    # From KEDA (metrics-api scaler)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # MySQL via Private Endpoint
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 3306
+    # Redis via Private Endpoint (Azure Managed Redis uses port 10000)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+
+---
+# =============================================================================
+# other-generation - Ingress and Egress
+# =============================================================================
+# GPT generation service - accepts from public-api.
+# Connects to Redis and Azure OpenAI.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: other-generation-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: other-generation
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: public-api
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Redis
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+
+---
+# =============================================================================
+# text-loading - Ingress and Egress
+# =============================================================================
+# Document processing service - accepts from public-api.
+# Connects to Redis, Azure Blob, Azure OpenAI (Whisper).
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: text-loading-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: text-loading
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: public-api
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Redis
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+
+---
+# =============================================================================
+# topic-modeling - Ingress and Egress
+# =============================================================================
+# Knowledge tree coordinator - accepts from public-api.
+# Connects to Redis, Azure Blob, Azure Queue.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: topic-modeling-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: topic-modeling
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: public-api
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Redis
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+
+---
+# =============================================================================
+# smart-quiz - Ingress and Egress
+# =============================================================================
+# Adaptive quiz service - accepts from public-api.
+# Connects to internal-db and Redis.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: smart-quiz-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: smart-quiz
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: public-api
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # internal-db
+    - to:
+        - podSelector:
+            matchLabels:
+              app: internal-db
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Redis
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+
+---
+# =============================================================================
+# frontend - Ingress Only
+# =============================================================================
+# React SPA - accepts from NGINX Ingress only.
+# No egress needed (static file serving).
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    # DNS only (for nginx resolver if configured)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+
+---
+# =============================================================================
+# embeddings-worker-msgs - Egress Only
+# =============================================================================
+# Dedicated message embeddings worker (always-on fast lane).
+# Connects to Redis and Azure Blob ONLY (no Qdrant - messages go to blob).
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: embeddings-worker-msgs-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: embeddings-worker-msgs
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress needed - worker pulls from queue
+  egress:
+    # Redis
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+
+---
+# =============================================================================
+# embeddings-worker-hybrid - Egress Only
+# =============================================================================
+# Hybrid embeddings worker (scale-to-zero, handles both queues).
+# Connects to MySQL (direct), Redis, Qdrant, Azure Blob/Queue.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: embeddings-worker-hybrid-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: embeddings-worker-hybrid
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress needed - worker pulls from queue
+  egress:
+    # MySQL via Private Endpoint
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 3306
+    # Redis
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+    # Qdrant (REST + gRPC)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+        - protocol: TCP
+          port: 6334
+
+---
+# =============================================================================
+# cronjobs - Egress Only
+# =============================================================================
+# Scheduled maintenance tasks.
+# redis-cleanup: Redis only
+# embedding-check: MySQL + Qdrant
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cronjobs-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: cronjobs
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress needed - jobs run on schedule
+  egress:
+    # Redis (for redis-cleanup)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
+    # MySQL (for embedding-check)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 3306
+    # Qdrant (for embedding-check) - REST + gRPC
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+        - protocol: TCP
+          port: 6334
+
+---
+# =============================================================================
+# Qdrant - Strict Ingress Control
+# =============================================================================
+# Vector database - only accepts from pods with qwiser.io/qdrant-access label.
+# Port 6335 (P2P) is NOT protected by API key, so it's blocked by omission.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qdrant-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: qdrant
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow REST (6333) and gRPC (6334) from labeled QWiser services ONLY
+    # Port 6335 (P2P) is NOT listed - blocked by default
+    - from:
+        - podSelector:
+            matchLabels:
+              qwiser.io/qdrant-access: "true"
+      ports:
+        - protocol: TCP
+          port: 6333
+        - protocol: TCP
+          port: 6334
+  egress:
+    # DNS only - Qdrant doesn't need outbound network access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# =============================================================================
+# secrets-sync-trigger - Egress Only
+# =============================================================================
+# Minimal pod for CSI secret sync - needs no network access.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: secrets-sync-trigger-policy
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: network-security
+spec:
+  podSelector:
+    matchLabels:
+      app: secrets-sync-trigger
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress or egress - just needs CSI driver mounts
+  egress:
+    # DNS only (may be needed by CSI driver)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53

@@ -1,0 +1,118 @@
+# =============================================================================
+# QWiser University - topic-modeling Deployment Patch
+# =============================================================================
+#
+# Security hardening and configuration for university deployment.
+#
+# NOTE: topic-modeling is the controller service that coordinates tree creation.
+# It communicates with embeddings workers and uses Azure Blob Storage for
+# intermediate results. This is CPU-heavy work (BERTopic, UMAP, HDBSCAN).
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: topic-modeling
+  namespace: default
+  labels:
+    azure.workload.identity/use: "true"
+    app: topic-modeling
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: topic-modeling
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: topic-modeling
+  template:
+    metadata:
+      labels:
+        app: topic-modeling
+        azure.workload.identity/use: "true"
+        qwiser-api: "true"
+    spec:
+      serviceAccountName: sa-qwiser
+
+      # --- Pod Security Context ---
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: topic-modeling
+          # --- Container Security Context ---
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Load environment from ConfigMap (created by Bicep deploymentScript)
+          envFrom:
+            - configMapRef:
+                name: qwiser-config
+
+          env:
+            - name: ENVIRONMENT
+              value: "PRODUCTION"
+            # Use local embeddings (not OpenAI API) - processed by embeddings-worker
+            - name: OPENAI_EMBEDDINGS
+              value: "false"
+            # Config refresh settings (CONFIG_LABEL comes from ConfigMap)
+            - name: CONFIG_REFRESH_INTERVAL
+              value: "45"
+            - name: CONFIG_SENTINEL_KEY
+              value: "sentinel"
+
+          resources:
+            requests:
+              memory: "11Gi"
+              cpu: "2000m"
+            limits:
+              memory: "13Gi"
+              cpu: "6000m"
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 45
+            timeoutSeconds: 60
+
+          # Volume mounts for writable directories (readOnlyRootFilesystem: true)
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      # Volumes for writable directories
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - topic-modeling
+                topologyKey: "kubernetes.io/hostname"

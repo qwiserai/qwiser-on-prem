@@ -1,0 +1,26 @@
+# =============================================================================
+# QWiser University - Workload Identity ServiceAccount
+# =============================================================================
+#
+# Single ServiceAccount for all QWiser workloads, bound to the User-Assigned
+# Managed Identity via federated credential created by Bicep.
+#
+# All workloads share the same Azure permissions. If per-workload isolation
+# is needed in future, create separate UAMIs with different Azure RBAC roles.
+#
+# DEPLOYMENT:
+#   Run ./apply.sh - it reads UAMI_CLIENT_ID from the ConfigMap and substitutes
+#   the placeholder automatically.
+#
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-qwiser
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+  annotations:
+    azure.workload.identity/client-id: REPLACE_WITH_UAMI_CLIENT_ID

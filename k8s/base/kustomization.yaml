@@ -1,0 +1,96 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# =============================================================================
+# QWiser University - Kubernetes Manifests
+# =============================================================================
+#
+# University deployment - no yt-worker, stripe-worker, or CSI Driver secrets.
+# All secrets are handled via Azure App Configuration with Key Vault references.
+#
+# HOW TO DEPLOY:
+#   After Bicep deployment completes, simply run:
+#
+#     ./apply.sh
+#
+#   The script automatically:
+#     - Reads CUSTOM_DOMAIN and ACR_LOGIN_SERVER from qwiser-config ConfigMap
+#     - Builds manifests with kustomize
+#     - Substitutes all placeholders
+#     - Applies to cluster
+#
+#   No arguments needed - all configuration comes from the ConfigMap created by Bicep.
+#
+# IMAGE VERSIONING:
+#   All image tags are managed centrally below. To update for a new release:
+#   1. Update the newTag values below to the release version (e.g., v1.0.0)
+#   2. Update VERSIONS.txt to match
+#   3. Run ./apply.sh
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Image Tags (centralized version management)
+# -----------------------------------------------------------------------------
+# Update these for each release. All services should use the same version.
+# The image name includes REPLACE_WITH_ACR_LOGIN_SERVER which apply.sh substitutes.
+# -----------------------------------------------------------------------------
+images:
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/public-api
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/internal-db
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/other-generation
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/text-loading
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/topic-modeling
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/smart-quiz
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/embeddings-worker
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/frontend
+    newTag: v1.0.0
+  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/cronjobs
+    newTag: v1.0.0
+
+resources:
+  - manifest.yaml
+  - workload-identity-sa.yaml      # ServiceAccounts for Workload Identity (Phase 5)
+  - nginx-ingress.yaml
+  - keda.yaml
+  - secretproviderclass.yaml       # CSI Driver for KEDA auth secret + TLS cert (Phase 5)
+  - network-policies.yaml          # Cilium NetworkPolicies (Phase 5)
+  - pod-disruption-budgets.yaml    # PDBs for availability (Phase 5)
+  - frontend.yaml                  # Frontend deployment + service (Phase 5)
+  - frontend-env-config.yaml       # Runtime config for frontend (Phase 5)
+  - embeddings-worker-msgs.yaml    # Dedicated message worker (Phase 5)
+  - embeddings-worker-hybrid.yaml  # Hybrid overflow worker (Phase 5)
+  - cronjobs.yaml                  # CronJobs for maintenance tasks (Phase 5)
+  - ml-models-pvc.yaml             # PVC for ML models Azure Files share (Phase 5)
+
+  # VPA (Vertical Pod Autoscaler) configurations
+  - vpa/internal-db.yaml
+  - vpa/other-generation.yaml
+  - vpa/public-api.yaml
+  - vpa/text-loading.yaml
+  - vpa/topic-modeling.yaml
+  - vpa/smart-quiz.yaml
+
+patches:
+  # Service-specific patches (resources, env vars, etc.)
+  - path: patches/internal-db.yaml
+  - path: patches/other-generation.yaml
+  - path: patches/public-api.yaml
+  - path: patches/text-loading.yaml
+  - path: patches/topic-modeling.yaml
+  - path: patches/smart-quiz.yaml
+
+  # Image versioning patches
+  - path: patches/versioning/internal-db.yaml
+  - path: patches/versioning/other-generation.yaml
+  - path: patches/versioning/public-api.yaml
+  - path: patches/versioning/text-loading.yaml
+  - path: patches/versioning/topic-modeling.yaml
+  - path: patches/versioning/smart-quiz.yaml

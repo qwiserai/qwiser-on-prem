@@ -1,0 +1,119 @@
+# =============================================================================
+# QWiser University - smart-quiz Deployment Patch
+# =============================================================================
+#
+# Security hardening and configuration for university deployment.
+#
+# NOTE: smart-quiz uses WebSocket connections for real-time quiz sessions.
+# It maintains session state in memory with Redis backing for persistence.
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smart-quiz
+  namespace: default
+  labels:
+    azure.workload.identity/use: "true"
+    app: smart-quiz
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: smart-quiz
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: smart-quiz
+  template:
+    metadata:
+      labels:
+        app: smart-quiz
+        azure.workload.identity/use: "true"
+        qwiser-api: "true"
+    spec:
+      serviceAccountName: sa-qwiser
+
+      # --- Pod Security Context ---
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: smart-quiz
+          # --- Container Security Context ---
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Load environment from ConfigMap (created by Bicep deploymentScript)
+          envFrom:
+            - configMapRef:
+                name: qwiser-config
+
+          env:
+            - name: ENVIRONMENT
+              value: "PRODUCTION"
+            # Config refresh settings (CONFIG_LABEL comes from ConfigMap)
+            - name: CONFIG_REFRESH_INTERVAL
+              value: "45"
+            - name: CONFIG_SENTINEL_KEY
+              value: "sentinel"
+
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "2.2Gi"
+              cpu: "1000m"
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 45
+            periodSeconds: 45
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          # Volume mounts for writable directories (readOnlyRootFilesystem: true)
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      # Volumes for writable directories
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - smart-quiz
+                topologyKey: "kubernetes.io/hostname"

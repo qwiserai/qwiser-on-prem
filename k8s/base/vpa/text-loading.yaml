@@ -1,0 +1,22 @@
+apiVersion: "autoscaling.k8s.io/v1"
+kind: VerticalPodAutoscaler
+metadata:
+  name: text-loading-vpa
+  namespace: default
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: text-loading
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        minAllowed:
+          memory: 200Mi
+          cpu: 300m
+        maxAllowed:
+          memory: 3Gi
+          cpu: 2000m
+        controlledResources: ["cpu", "memory"]
+  updatePolicy:
+    updateMode: "Off"

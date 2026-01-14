@@ -1,0 +1,119 @@
+# =============================================================================
+# QWiser University - public-api Deployment Patch
+# =============================================================================
+#
+# Security hardening and configuration for university deployment.
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: public-api
+  namespace: default
+  labels:
+    azure.workload.identity/use: "true"
+    app: public-api
+    app.kubernetes.io/name: qwiser
+    app.kubernetes.io/component: public-api
+    app.kubernetes.io/part-of: qwiser-university
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: public-api
+  template:
+    metadata:
+      labels:
+        app: public-api
+        azure.workload.identity/use: "true"
+        qwiser-api: "true"
+        # REQUIRED: Allows network policy to permit Qdrant access
+        qwiser.io/qdrant-access: "true"
+    spec:
+      serviceAccountName: sa-qwiser
+
+      # --- Pod Security Context ---
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: public-api
+          # --- Container Security Context ---
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Load environment from ConfigMap (created by Bicep deploymentScript)
+          envFrom:
+            - configMapRef:
+                name: qwiser-config
+
+          env:
+            # FORWARDED_ALLOW_IPS: Trust only pod CIDR for proxy headers
+            # This prevents header spoofing - only NGINX Ingress pods can set
+            # X-Forwarded-For headers that the app will trust.
+            # IMPORTANT: Must match pod CIDR in AKS network profile (default: 192.168.0.0/16)
+            - name: FORWARDED_ALLOW_IPS
+              value: "192.168.0.0/16"
+            - name: ENVIRONMENT
+              value: "PRODUCTION"
+            # Config refresh settings (CONFIG_LABEL comes from ConfigMap)
+            - name: CONFIG_REFRESH_INTERVAL
+              value: "45"
+            - name: CONFIG_SENTINEL_KEY
+              value: "sentinel"
+
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 45
+            timeoutSeconds: 40
+
+          # Volume mounts for writable directories (readOnlyRootFilesystem: true)
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      # Volumes for writable directories
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - public-api
+                topologyKey: "kubernetes.io/hostname"

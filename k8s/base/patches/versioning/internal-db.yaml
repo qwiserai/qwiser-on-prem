@@ -1,0 +1,22 @@
+# =============================================================================
+# QWiser University - internal-db Versioning Patch
+# =============================================================================
+#
+# Image placeholder is substituted by apply.sh using ACR_LOGIN_SERVER from ConfigMap.
+# Image tag is overridden by kustomization.yaml images section.
+# Run: ./apply.sh
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: internal-db
+spec:
+  template:
+    spec:
+      containers:
+        - name: internal-db
+          image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/internal-db:PLACEHOLDER
+          ports:
+            - containerPort: 8000

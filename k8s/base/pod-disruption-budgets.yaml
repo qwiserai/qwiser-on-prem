@@ -1,0 +1,182 @@
+# =============================================================================
+# QWiser University - Pod Disruption Budgets
+# =============================================================================
+#
+# PDBs ensure high availability during voluntary disruptions:
+#   - Node maintenance / upgrades
+#   - Cluster autoscaler scale-down
+#   - kubectl drain operations
+#
+# STRATEGY:
+#   - Services with replicas >= 2: minAvailable = 1 (allow 1 pod disruption)
+#   - Services with replicas = 1: maxUnavailable = 0 (block disruption)
+#   - KEDA-scaled services: Use maxUnavailable for flexibility
+#
+# NOTE:
+#   PDBs do NOT protect against involuntary disruptions (node crashes, OOM).
+#   Use resource limits and health probes for those scenarios.
+#
+# =============================================================================
+
+---
+# =============================================================================
+# API Services (User-Facing)
+# =============================================================================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: public-api-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: public-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: public-api
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+
+---
+# =============================================================================
+# Internal Services
+# =============================================================================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: internal-db-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: internal-db
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: internal-db
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: other-generation-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: other-generation
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: other-generation
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: text-loading-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: text-loading
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: text-loading
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: smart-quiz-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: smart-quiz
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: smart-quiz
+
+---
+# =============================================================================
+# KEDA-Scaled Services
+# =============================================================================
+# These services can scale to 0 or have variable replica counts.
+# Use maxUnavailable instead of minAvailable for flexibility.
+# =============================================================================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: topic-modeling-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: topic-modeling
+spec:
+  # Allow disruption of at most 1 pod at a time
+  # Works even when replicas vary due to KEDA scaling
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: topic-modeling
+
+---
+# =============================================================================
+# GPU Workers
+# =============================================================================
+# embeddings-worker-msgs: Always-on (minReplicas=1), cannot be disrupted
+# embeddings-worker-hybrid: Scales to 0, use maxUnavailable
+# =============================================================================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: embeddings-worker-msgs-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: embeddings-worker
+spec:
+  # Critical service - must always have the 1 replica available
+  # Block voluntary disruptions when only 1 pod exists
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: embeddings-worker-msgs
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: embeddings-worker-hybrid-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: qwiser-university
+    app.kubernetes.io/component: embeddings-worker
+spec:
+  # Allow disruption of at most 1 pod at a time
+  # When scaled to 0, this doesn't block anything
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: embeddings-worker-hybrid

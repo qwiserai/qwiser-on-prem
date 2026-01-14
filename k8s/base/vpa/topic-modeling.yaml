@@ -1,0 +1,22 @@
+apiVersion: "autoscaling.k8s.io/v1"
+kind: VerticalPodAutoscaler
+metadata:
+  name: topic-modeling-vpa
+  namespace: default
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: topic-modeling
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        minAllowed:
+          memory: 4Gi
+          cpu: 2000m
+        maxAllowed:
+          memory: 12Gi
+          cpu: 7000m
+        controlledResources: ["cpu", "memory"]
+  updatePolicy:
+    updateMode: "Off"

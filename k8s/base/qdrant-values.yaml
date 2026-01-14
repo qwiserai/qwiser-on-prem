@@ -1,0 +1,143 @@
+# =============================================================================
+# QWiser University - Qdrant Helm Values
+# =============================================================================
+#
+# Values override for official Qdrant Helm chart.
+#
+# INSTALLATION:
+#   # STEP 1: Create K8s secret from Key Vault (before helm install!)
+#   QDRANT_API_KEY=$(az keyvault secret show --vault-name {kv-name} --name QDRANT-API-KEY --query value -o tsv)
+#   kubectl create secret generic qdrant-apikey --namespace default --from-literal=api-key=$QDRANT_API_KEY
+#
+#   # STEP 2: Install Qdrant via Helm
+#   helm repo add qdrant https://qdrant.to/helm
+#   helm repo update
+#   helm install qdrant qdrant/qdrant \
+#     --namespace default \
+#     --values ./k8s/base/qdrant-values.yaml \
+#     --wait --timeout 10m
+#
+# STORAGE:
+#   - Uses Azure Disk (managed-csi), NOT Azure Files/NFS
+#   - Qdrant requires POSIX filesystem with block storage
+#
+# SECURITY:
+#   - API key authentication required (ports 6333, 6334)
+#   - Port 6335 (P2P) is NOT protected by API key - blocked by NetworkPolicy
+#   - Network policy restricts access to labeled pods only
+#
+# =============================================================================
+
+# Single replica for university deployments (no clustering)
+replicaCount: 1
+
+image:
+  repository: qdrant/qdrant
+  tag: "v1.16.3"
+  useUnprivilegedImage: true
+  pullPolicy: IfNotPresent
+
+# Internal ClusterIP only - NOT LoadBalancer
+service:
+  type: ClusterIP
+  ports:
+    # MUST be 'http' not 'rest' - Helm chart checks this for health probes!
+    - name: http
+      port: 6333
+      targetPort: 6333
+      protocol: TCP
+      checksEnabled: true
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+      protocol: TCP
+      checksEnabled: false
+    - name: p2p
+      port: 6335
+      targetPort: 6335
+      protocol: TCP
+      checksEnabled: false
+
+# Health probes - Helm chart constructs these from checksEnabled
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 6
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 6
+  successThreshold: 1
+
+# Startup probe - allows extra time for data loading on restart
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 30  # Allows up to 5 min startup
+  successThreshold: 1
+
+# Container security context - use Helm defaults for user/group
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 2000  # Helm default
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 3000  # Helm default
+  fsGroupChangePolicy: Always
+  seccompProfile:
+    type: RuntimeDefault
+
+# Persistence - Azure Disk (NOT Azure Files/NFS - Qdrant requires block storage)
+persistence:
+  accessModes: ["ReadWriteOnce"]
+  size: 50Gi
+  storageClassName: managed-csi  # Azure Disk CSI driver
+
+# Snapshot persistence - recommended for snapshot shard transfer
+snapshotPersistence:
+  enabled: true
+  accessModes: ["ReadWriteOnce"]
+  size: 50Gi
+  storageClassName: managed-csi
+
+# API Key authentication - reference externally-created secret
+# IMPORTANT: Create this secret BEFORE running helm install
+apiKey:
+  valueFrom:
+    secretKeyRef:
+      name: qdrant-apikey
+      key: api-key
+
+# Resources - adjust based on vector count and dimensions
+# Sizing calculator: https://cloud.qdrant.io/calculator
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "2"
+    memory: "4Gi"
+
+# Disable clustering for single-node deployment
+config:
+  cluster:
+    enabled: false
+
+# Pod Disruption Budget - important for node maintenance
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

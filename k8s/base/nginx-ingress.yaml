@@ -1,0 +1,108 @@
+# =============================================================================
+# QWiser University - Ingress Configuration
+# =============================================================================
+#
+# Path-based routing for single-domain deployment:
+#   /ready, /healthz -> public-api (health checks)
+#   /api/*           -> public-api (backend API)
+#   /*               -> frontend   (React SPA)
+#
+# DEPLOYMENT:
+#   Run ./apply.sh - it automatically reads CUSTOM_DOMAIN from the ConfigMap
+#   created by Bicep and substitutes the placeholder.
+#
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qwiser-ingress
+  namespace: default
+  annotations:
+    # --- Proxy Configuration ---
+    nginx.ingress.kubernetes.io/proxy-body-size: "500M"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+    # --- Forwarded Headers (from Front Door via NGINX) ---
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+
+    # --- WebSocket Support (for smart-quiz, topic-modeling streaming) ---
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+
+    # --- NOTE: Removed kubernetes.azure.com/tls-cert-keyvault-uri ---
+    # That annotation only works with AKS App Routing addon.
+    # With vanilla NGINX Ingress Controller, use the TLS section below.
+
+spec:
+  # Use NGINX Ingress Controller installed via Helm in Bicep deploymentScript
+  ingressClassName: nginx
+
+  # ==========================================================================
+  # TLS Configuration
+  # ==========================================================================
+  # Choose ONE of the following options:
+  #
+  # OPTION A: Secrets Store CSI Driver (recommended for Azure-native)
+  #   - Certificate synced from Key Vault via SecretProviderClass
+  #   - Requires secretproviderclass.yaml to be applied first
+  #   - secretName: qwiser-tls (synced by CSI Driver)
+  #
+  # OPTION B: cert-manager with Let's Encrypt
+  #   - Automatic certificate provisioning and renewal
+  #   - Add annotation: cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  #   - secretName: qwiser-tls (created by cert-manager)
+  #
+  # Uncomment the appropriate tls section below after setup.
+  # ==========================================================================
+  tls:
+    - hosts:
+        - REPLACE_WITH_CUSTOM_DOMAIN
+      secretName: qwiser-tls
+
+  rules:
+    - host: REPLACE_WITH_CUSTOM_DOMAIN
+      http:
+        paths:
+          # --- Health Check Endpoints (highest priority) ---
+          # Used by K8s probes and Front Door health probes
+          - path: /ready
+            pathType: Exact
+            backend:
+              service:
+                name: public-api
+                port:
+                  number: 8000
+
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: public-api
+                port:
+                  number: 8000
+
+          # --- API Routes (Prefix match) ---
+          # All backend API calls go through /api/*
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: public-api
+                port:
+                  number: 8000
+
+          # --- Frontend Catch-All (lowest priority) ---
+          # React SPA served from frontend service
+          # NGINX in frontend container handles client-side routing
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
