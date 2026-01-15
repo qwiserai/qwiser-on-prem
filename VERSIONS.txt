@@ -1,12 +1,12 @@
 # QWiser University Release v1.0.0
 # Use with: import-images.sh
 
-qwiser/public-api:v1.0.0
-qwiser/internal-db:v1.0.0
-qwiser/other-generation:v1.0.0
-qwiser/text-loading:v1.0.0
-qwiser/topic-modeling:v1.0.0
-qwiser/smart-quiz:v1.0.0
-qwiser/embeddings-worker:v1.0.0
-qwiser/frontend:v1.0.0
-qwiser/cronjobs:v1.0.0
+qwiser/public-api:v0.0.2
+qwiser/internal-db:v0.0.9
+qwiser/other-generation:v0.0.1
+qwiser/text-loading:v0.0.2
+qwiser/topic-modeling:v0.0.2
+qwiser/smart-quiz:v0.0.2
+qwiser/embeddings-worker:v0.0.1
+qwiser/frontend:v0.0.95
+qwiser/cronjobs:v0.0.3
