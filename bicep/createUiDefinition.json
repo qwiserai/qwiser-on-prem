@@ -156,13 +156,57 @@
                 }
               },
               {
-                "name": "mysqlSkuName",
-                "type": "Microsoft.Common.TextBox",
-                "label": "SKU Name",
-                "defaultValue": "Standard_D2ds_v4",
-                "toolTip": "VM size for MySQL server. Standard_D2ds_v4 = 2 vCPUs, 8GB RAM.",
+                "name": "mysqlSkuNameBurstable",
+                "type": "Microsoft.Common.DropDown",
+                "label": "SKU",
+                "defaultValue": "Standard_B2ms",
+                "visible": "[equals(steps('database').mysqlSection.mysqlSkuTier, 'Burstable')]",
+                "toolTip": "Burstable VM size. B-series uses CPU credits.",
                 "constraints": {
-                  "required": true
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Standard_B1ms (1 vCPU, 2 GB)", "value": "Standard_B1ms" },
+                    { "label": "Standard_B2s (2 vCPU, 4 GB)", "value": "Standard_B2s" },
+                    { "label": "Standard_B2ms (2 vCPU, 8 GB) - Recommended", "value": "Standard_B2ms" },
+                    { "label": "Standard_B4ms (4 vCPU, 16 GB)", "value": "Standard_B4ms" },
+                    { "label": "Standard_B8ms (8 vCPU, 32 GB)", "value": "Standard_B8ms" }
+                  ]
+                }
+              },
+              {
+                "name": "mysqlSkuNameGeneralPurpose",
+                "type": "Microsoft.Common.DropDown",
+                "label": "SKU",
+                "defaultValue": "Standard_D2ds_v4",
+                "visible": "[equals(steps('database').mysqlSection.mysqlSkuTier, 'GeneralPurpose')]",
+                "toolTip": "General Purpose VM size. D-series for balanced compute.",
+                "constraints": {
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Standard_D2ds_v4 (2 vCPU, 8 GB) - Recommended", "value": "Standard_D2ds_v4" },
+                    { "label": "Standard_D4ds_v4 (4 vCPU, 16 GB)", "value": "Standard_D4ds_v4" },
+                    { "label": "Standard_D8ds_v4 (8 vCPU, 32 GB)", "value": "Standard_D8ds_v4" },
+                    { "label": "Standard_D16ds_v4 (16 vCPU, 64 GB)", "value": "Standard_D16ds_v4" },
+                    { "label": "Standard_D32ds_v4 (32 vCPU, 128 GB)", "value": "Standard_D32ds_v4" }
+                  ]
+                }
+              },
+              {
+                "name": "mysqlSkuNameBusinessCritical",
+                "type": "Microsoft.Common.DropDown",
+                "label": "SKU",
+                "defaultValue": "Standard_E2ds_v4",
+                "visible": "[equals(steps('database').mysqlSection.mysqlSkuTier, 'MemoryOptimized')]",
+                "toolTip": "Business Critical VM size. E-series for memory-intensive workloads.",
+                "constraints": {
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Standard_E2ds_v4 (2 vCPU, 16 GB)", "value": "Standard_E2ds_v4" },
+                    { "label": "Standard_E4ds_v4 (4 vCPU, 32 GB)", "value": "Standard_E4ds_v4" },
+                    { "label": "Standard_E8ds_v4 (8 vCPU, 64 GB)", "value": "Standard_E8ds_v4" },
+                    { "label": "Standard_E16ds_v4 (16 vCPU, 128 GB)", "value": "Standard_E16ds_v4" },
+                    { "label": "Standard_E32ds_v4 (32 vCPU, 256 GB)", "value": "Standard_E32ds_v4" }
+                  ]
                 }
               },
               {
@@ -176,11 +220,20 @@
                 "toolTip": "Initial storage allocation. Can be increased later but not decreased."
               },
               {
+                "name": "mysqlHaWarning",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[and(equals(steps('database').mysqlSection.mysqlSkuTier, 'Burstable'), not(equals(steps('database').mysqlSection.mysqlHighAvailabilityMode, 'Disabled')))]",
+                "options": {
+                  "icon": "Error",
+                  "text": "Burstable tier does NOT support High Availability. Deployment will fail. Select 'Disabled' or change to GeneralPurpose/MemoryOptimized tier."
+                }
+              },
+              {
                 "name": "mysqlHighAvailabilityMode",
                 "type": "Microsoft.Common.DropDown",
                 "label": "High Availability",
                 "defaultValue": "Disabled",
-                "toolTip": "Zone-redundant HA requires GeneralPurpose or MemoryOptimized tier.",
+                "toolTip": "HA requires GeneralPurpose or MemoryOptimized tier. Burstable does NOT support HA.",
                 "constraints": {
                   "required": true,
                   "allowedValues": [
@@ -199,23 +252,21 @@
             "elements": [
               {
                 "name": "redisSkuName",
-                "type": "Microsoft.Common.TextBox",
-                "label": "SKU Name",
+                "type": "Microsoft.Common.DropDown",
+                "label": "SKU",
                 "defaultValue": "Balanced_B5",
-                "toolTip": "Redis Enterprise SKU. Balanced_B5 = 6GB cache. See Azure docs for options.",
+                "toolTip": "Redis cache size. Balanced tier recommended for QWiser workloads.",
                 "constraints": {
-                  "required": true
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Balanced_B0 (0.5 GB) - Dev/test", "value": "Balanced_B0" },
+                    { "label": "Balanced_B1 (1 GB) - Dev/test", "value": "Balanced_B1" },
+                    { "label": "Balanced_B3 (3 GB) - Small", "value": "Balanced_B3" },
+                    { "label": "Balanced_B5 (5 GB) - Recommended", "value": "Balanced_B5" },
+                    { "label": "Balanced_B10 (10 GB) - Medium", "value": "Balanced_B10" },
+                    { "label": "Balanced_B20 (20 GB) - Large", "value": "Balanced_B20" }
+                  ]
                 }
-              },
-              {
-                "name": "redisSkuCapacity",
-                "type": "Microsoft.Common.Slider",
-                "label": "Capacity",
-                "defaultValue": 2,
-                "min": 2,
-                "max": 10,
-                "showStepMarkers": true,
-                "toolTip": "Number of Redis nodes for the cluster."
               },
               {
                 "name": "redisHighAvailability",
@@ -249,6 +300,14 @@
         "name": "compute",
         "label": "Compute",
         "elements": [
+          {
+            "name": "quotaWarning",
+            "type": "Microsoft.Common.InfoBox",
+            "options": {
+              "icon": "Warning",
+              "text": "Before deploying, verify you have sufficient VM quota in your target region. Required quotas: standardDSv5Family (12+ cores for AKS system nodes), standardNCASv3_T4Family (4+ cores for GPU nodes). Check quotas: Azure Portal → Quotas → Compute → Select region."
+            }
+          },
           {
             "name": "aksSection",
             "type": "Microsoft.Common.Section",
@@ -331,22 +390,22 @@
           {
             "name": "gpuSection",
             "type": "Microsoft.Common.Section",
-            "label": "GPU Node Pool (Optional)",
+            "label": "GPU Node Pool",
             "elements": [
               {
                 "name": "gpuInfo",
                 "type": "Microsoft.Common.InfoBox",
                 "options": {
-                  "icon": "Info",
-                  "text": "GPU nodes accelerate embedding generation. Not required - CPU embedding works but is slower."
+                  "icon": "Warning",
+                  "text": "GPU node pool is required. The embeddings worker requires GPU acceleration and will not function on CPU-only nodes."
                 }
               },
               {
                 "name": "deployGpuNodePool",
                 "type": "Microsoft.Common.CheckBox",
                 "label": "Deploy GPU Node Pool",
-                "defaultValue": false,
-                "toolTip": "Deploy an additional node pool with NVIDIA T4 GPUs for faster embeddings."
+                "defaultValue": true,
+                "toolTip": "Required for embeddings. Deploys a node pool with NVIDIA T4 GPUs."
               },
               {
                 "name": "gpuNodeVmSize",
@@ -564,11 +623,10 @@
       "mysqlAdminLogin": "[steps('database').mysqlSection.mysqlAdminLogin]",
       "mysqlAdminPassword": "[steps('database').mysqlSection.mysqlAdminPassword]",
       "mysqlSkuTier": "[steps('database').mysqlSection.mysqlSkuTier]",
-      "mysqlSkuName": "[steps('database').mysqlSection.mysqlSkuName]",
+      "mysqlSkuName": "[if(equals(steps('database').mysqlSection.mysqlSkuTier, 'Burstable'), steps('database').mysqlSection.mysqlSkuNameBurstable, if(equals(steps('database').mysqlSection.mysqlSkuTier, 'GeneralPurpose'), steps('database').mysqlSection.mysqlSkuNameGeneralPurpose, steps('database').mysqlSection.mysqlSkuNameBusinessCritical))]",
       "mysqlStorageSizeGB": "[steps('database').mysqlSection.mysqlStorageSizeGB]",
       "mysqlHighAvailabilityMode": "[steps('database').mysqlSection.mysqlHighAvailabilityMode]",
       "redisSkuName": "[steps('database').redisSection.redisSkuName]",
-      "redisSkuCapacity": "[steps('database').redisSection.redisSkuCapacity]",
       "redisHighAvailability": "[steps('database').redisSection.redisHighAvailability]",
       "redisZones": "[if(empty(steps('database').redisSection.redisZones), parse('[]'), split(steps('database').redisSection.redisZones, ','))]",
       "kubernetesVersion": "[steps('compute').aksSection.kubernetesVersion]",

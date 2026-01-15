@@ -2,7 +2,7 @@
 
 Deploy QWiser to your own Azure infrastructure.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.1%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.1%2Fbicep%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.2%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.2%2Fbicep%2FcreateUiDefinition.json)
 
 ---
 
@@ -28,9 +28,9 @@ Before deploying, ensure you have:
 
 ## Quick Start
 
-### Option A: One-Click Deploy
+### Option A: One-Click Deploy (Recommended)
 
-Click the button at the top of this page, fill in the parameters, and deploy.
+Click the button at the top of this page, fill in the parameters, and deploy. Recommended for built-in validations and guided configuration.
 
 After deployment completes, clone this repo for post-deployment scripts:
 

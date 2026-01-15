@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "7462194671160361420"
+      "templateHash": "10238832795038952558"
     }
   },
   "parameters": {
@@ -30,7 +30,7 @@
       "type": "object",
       "defaultValue": {},
       "metadata": {
-        "description": "Tags to apply to all resources"
+        "description": "Tags to apply to all resources. Example: { Environment: \"prod\", CostCenter: \"IT-12345\", Owner: \"admin@university.edu\" }"
       }
     },
     "vnetAddressPrefix": {
@@ -122,15 +122,18 @@
     "redisSkuName": {
       "type": "string",
       "defaultValue": "Balanced_B5",
+      "allowedValues": [
+        "Balanced_B0",
+        "Balanced_B1",
+        "Balanced_B3",
+        "Balanced_B5",
+        "Balanced_B10",
+        "Balanced_B20",
+        "Balanced_B50",
+        "Balanced_B100"
+      ],
       "metadata": {
-        "description": "Redis SKU name (e.g., Balanced_B5, MemoryOptimized_M10)"
-      }
-    },
-    "redisSkuCapacity": {
-      "type": "int",
-      "defaultValue": 2,
-      "metadata": {
-        "description": "Redis SKU capacity"
+        "description": "Redis SKU name. Balanced tier recommended for QWiser workloads."
       }
     },
     "redisHighAvailability": {
@@ -209,9 +212,9 @@
     },
     "deployGpuNodePool": {
       "type": "bool",
-      "defaultValue": false,
+      "defaultValue": true,
       "metadata": {
-        "description": "Deploy optional GPU node pool for embeddings-worker"
+        "description": "Deploy GPU node pool for embeddings-worker. Required - embeddings fail without GPU acceleration."
       }
     },
     "gpuNodeVmSize": {
@@ -2061,7 +2064,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "5597657971077878608"
+              "templateHash": "12880417484094005936"
             }
           },
           "parameters": {
@@ -2128,14 +2131,14 @@
                 "MemoryOptimized"
               ],
               "metadata": {
-                "description": "SKU tier"
+                "description": "SKU tier: Burstable (B-series), GeneralPurpose (D-series), or MemoryOptimized (E-series). Burstable does NOT support HA."
               }
             },
             "skuName": {
               "type": "string",
               "defaultValue": "Standard_D2ds_v4",
               "metadata": {
-                "description": "SKU name (e.g., Standard_D2ds_v4)"
+                "description": "SKU name must match tier: B* for Burstable, D* for GeneralPurpose, E* for MemoryOptimized."
               }
             },
             "storageSizeGB": {
@@ -2369,9 +2372,6 @@
           "skuName": {
             "value": "[parameters('redisSkuName')]"
           },
-          "skuCapacity": {
-            "value": "[parameters('redisSkuCapacity')]"
-          },
           "highAvailability": {
             "value": "[parameters('redisHighAvailability')]"
           },
@@ -2389,7 +2389,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "339469833459080563"
+              "templateHash": "12324329491329829878"
             }
           },
           "parameters": {
@@ -2426,15 +2426,18 @@
             "skuName": {
               "type": "string",
               "defaultValue": "Balanced_B5",
+              "allowedValues": [
+                "Balanced_B0",
+                "Balanced_B1",
+                "Balanced_B3",
+                "Balanced_B5",
+                "Balanced_B10",
+                "Balanced_B20",
+                "Balanced_B50",
+                "Balanced_B100"
+              ],
               "metadata": {
-                "description": "Redis SKU name (e.g., Balanced_B5, MemoryOptimized_M10)"
-              }
-            },
-            "skuCapacity": {
-              "type": "int",
-              "defaultValue": 2,
-              "metadata": {
-                "description": "SKU capacity (even numbers for Enterprise, multiples of 3 for Flash)"
+                "description": "Redis SKU name. Balanced tier recommended for standard workloads. Size suffix indicates approximate memory (B1=1GB, B5=5GB, B10=10GB, B20=20GB)."
               }
             },
             "highAvailability": {
@@ -2496,8 +2499,7 @@
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
               "sku": {
-                "name": "[parameters('skuName')]",
-                "capacity": "[parameters('skuCapacity')]"
+                "name": "[parameters('skuName')]"
               },
               "zones": "[if(not(empty(parameters('zones'))), parameters('zones'), null())]",
               "properties": {

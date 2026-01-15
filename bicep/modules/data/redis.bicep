@@ -40,11 +40,18 @@ param privateDnsZoneId string
 
 // --- Redis Configuration ---
 
-@description('Redis SKU name (e.g., Balanced_B5, MemoryOptimized_M10)')
+@description('Redis SKU name. Balanced tier recommended for standard workloads. Size suffix indicates approximate memory (B1=1GB, B5=5GB, B10=10GB, B20=20GB).')
+@allowed([
+  'Balanced_B0'    // 0.5 GB - Dev/test only
+  'Balanced_B1'    // 1 GB   - Dev/test
+  'Balanced_B3'    // 3 GB   - Small production
+  'Balanced_B5'    // 5 GB   - Small production (default)
+  'Balanced_B10'   // 10 GB  - Medium production
+  'Balanced_B20'   // 20 GB  - Large production
+  'Balanced_B50'   // 50 GB  - Large production
+  'Balanced_B100'  // 100 GB - Enterprise
+])
 param skuName string = 'Balanced_B5'
-
-@description('SKU capacity (even numbers for Enterprise, multiples of 3 for Flash)')
-param skuCapacity int = 2
 
 @description('Enable high availability (data replication)')
 @allowed([
@@ -98,7 +105,6 @@ resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' = {
   tags: tags
   sku: {
     name: skuName
-    capacity: skuCapacity
   }
   zones: !empty(zones) ? zones : null
   properties: {

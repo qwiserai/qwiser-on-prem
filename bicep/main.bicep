@@ -85,11 +85,18 @@ param mysqlHighAvailabilityMode string = 'Disabled'
 // Redis Parameters
 // ============================================================================
 
-@description('Redis SKU name (e.g., Balanced_B5, MemoryOptimized_M10)')
+@description('Redis SKU name. Balanced tier recommended for QWiser workloads.')
+@allowed([
+  'Balanced_B0'    // 0.5 GB - Dev/test only
+  'Balanced_B1'    // 1 GB   - Dev/test
+  'Balanced_B3'    // 3 GB   - Small production
+  'Balanced_B5'    // 5 GB   - Small production (default)
+  'Balanced_B10'   // 10 GB  - Medium production
+  'Balanced_B20'   // 20 GB  - Large production
+  'Balanced_B50'   // 50 GB  - Large production
+  'Balanced_B100'  // 100 GB - Enterprise
+])
 param redisSkuName string = 'Balanced_B5'
-
-@description('Redis SKU capacity')
-param redisSkuCapacity int = 2
 
 @description('Enable Redis high availability')
 @allowed([
@@ -129,8 +136,8 @@ param aksSystemNodeMaxCount int = 10
 @description('Pod CIDR for Azure CNI Overlay. Uses CGNAT range (100.64.x.x) which is unlikely to conflict with campus networks. Only change if your network already uses this range.')
 param aksPodCidr string = '100.64.0.0/16'
 
-@description('Deploy optional GPU node pool for embeddings-worker')
-param deployGpuNodePool bool = false
+@description('Deploy GPU node pool for embeddings-worker. Required - embeddings fail without GPU acceleration.')
+param deployGpuNodePool bool = true
 
 @description('GPU node pool VM size')
 @allowed([
@@ -331,7 +338,6 @@ module redis 'modules/data/redis.bicep' = {
     peSubnetId: vnet.outputs.peSubnetId
     privateDnsZoneId: privateDnsZones.outputs.redisDnsZoneId
     skuName: redisSkuName
-    skuCapacity: redisSkuCapacity
     highAvailability: redisHighAvailability
     zones: redisZones
     workloadIdentityPrincipalId: managedIdentity.outputs.principalId

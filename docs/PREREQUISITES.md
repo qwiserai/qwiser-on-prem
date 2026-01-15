@@ -39,6 +39,16 @@ az provider register --namespace Microsoft.Security
 az provider show --namespace Microsoft.ContainerService --query "registrationState"
 ```
 
+### CPU Architecture
+
+**QWiser container images are AMD64 (x86_64) only.** ARM-based VMs are not supported.
+
+This is due to:
+- PyTorch and ONNX Runtime GPU dependencies (no ARM builds)
+- Nuitka-compiled binaries targeting x86_64
+
+The deployment template only offers AMD64-compatible VM sizes (Standard_D*, Standard_NC*). Do not attempt to use ARM-based VMs (Dpsv5, Epsv5 with Ampere).
+
 ### Azure Quotas
 
 | Resource | Minimum Required | How to Check |
@@ -196,15 +206,13 @@ environmentName: prod | staging | dev
 
 ### 3. GPU Node Pool
 
-| Question | Yes | No |
-|----------|-----|-----|
-| Using local embeddings (FastEmbed)? | Deploy GPU pool | Skip GPU pool |
-| High embedding throughput needed? | Deploy GPU pool | CPU embeddings OK |
-| Budget constraints? | Consider CPU-only | Deploy GPU pool |
+**GPU node pool is required.** The embeddings worker requires GPU acceleration and will not function on CPU-only nodes.
 
-**Set in parameters:**
+Ensure you have quota for NC-series VMs in your target region (see Quotas section above).
+
+**Default in parameters:**
 ```bicep
-param deployGpuNodePool = true  // or false
+param deployGpuNodePool = true  // Required - do not set to false
 ```
 
 ### 4. High Availability

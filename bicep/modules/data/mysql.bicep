@@ -64,7 +64,7 @@ param administratorLoginPassword string
 ])
 param mysqlVersion string = '8.0.21'
 
-@description('SKU tier')
+@description('SKU tier: Burstable (B-series), GeneralPurpose (D-series), or MemoryOptimized (E-series). Burstable does NOT support HA.')
 @allowed([
   'Burstable'
   'GeneralPurpose'
@@ -72,7 +72,7 @@ param mysqlVersion string = '8.0.21'
 ])
 param skuTier string = 'GeneralPurpose'
 
-@description('SKU name (e.g., Standard_D2ds_v4)')
+@description('SKU name must match tier: B* for Burstable, D* for GeneralPurpose, E* for MemoryOptimized.')
 param skuName string = 'Standard_D2ds_v4'
 
 @description('Storage size in GB')
