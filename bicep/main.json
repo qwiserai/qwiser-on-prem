@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "11708888343159712737"
+      "templateHash": "11938824654548292223"
     }
   },
   "parameters": {
@@ -275,6 +275,13 @@
       "metadata": {
         "description": "Enable purge protection on App Configuration. Disable for test/dev to allow easy cleanup."
       }
+    },
+    "deploymentId": {
+      "type": "string",
+      "defaultValue": "[newGuid()]",
+      "metadata": {
+        "description": "Random deployment ID for globally unique resource names. Auto-generated - do not set manually."
+      }
     }
   },
   "variables": {
@@ -282,7 +289,7 @@
     "resourceGroupName": "[format('{0}-{1}-rg', parameters('namePrefix'), parameters('environmentName'))]",
     "namingPrefix": "[format('{0}-{1}', parameters('namePrefix'), parameters('environmentName'))]",
     "aksClusterName": "[format('{0}-aks', variables('namingPrefix'))]",
-    "uniqueSuffix": "[substring(uniqueString(subscription().subscriptionId, variables('resourceGroupName')), 0, 6)]",
+    "uniqueSuffix": "[substring(parameters('deploymentId'), 0, 6)]",
     "nodeResourceGroupName": "[format('MC_{0}_{1}_{2}', variables('resourceGroupName'), variables('aksClusterName'), variables('location'))]"
   },
   "resources": [

@@ -186,6 +186,9 @@ param customDomain string
 @description('Enable purge protection on App Configuration. Disable for test/dev to allow easy cleanup.')
 param enablePurgeProtection bool = true
 
+@description('Random deployment ID for globally unique resource names. Auto-generated - do not set manually.')
+param deploymentId string = newGuid()
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -197,8 +200,8 @@ var resourceGroupName = '${namePrefix}-${environmentName}-rg'
 var namingPrefix = '${namePrefix}-${environmentName}'
 var aksClusterName = '${namingPrefix}-aks'
 
-// Unique suffix for globally unique Key Vault names
-var uniqueSuffix = substring(uniqueString(subscription().subscriptionId, resourceGroupName), 0, 6)
+// Random suffix for globally unique Key Vault names (avoids soft-delete collisions)
+var uniqueSuffix = substring(deploymentId, 0, 6)
 
 // Pre-compute node resource group name (deterministic: MC_<rg>_<cluster>_<location>)
 // This allows cross-RG role assignments without waiting for AKS outputs
