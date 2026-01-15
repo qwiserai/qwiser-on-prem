@@ -1,6 +1,6 @@
 # QWiser University - Post-Deployment Guide
 
-> **Last Updated**: 2026-01-14
+> **Last Updated**: 2026-01-15
 > **Version**: 1.0.0
 > **Audience**: University IT Infrastructure Teams
 
@@ -9,7 +9,6 @@
 ## Overview
 
 This guide covers post-deployment configuration tasks after the main infrastructure and application deployment is complete.
-
 ---
 
 ## LTI 1.3 Integration (Moodle/Canvas)
@@ -36,9 +35,8 @@ cat lti-private-key.pem
 ### Step 2: Store Private Key in Key Vault
 
 ```bash
-KEYVAULT_NAME="qwiser-prod-kv"
+KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
 
-# Upload private key (replace newlines with \n for single-line storage)
 az keyvault secret set \
     --vault-name "$KEYVAULT_NAME" \
     --name "LTI-PRIVATE-KEY" \
@@ -91,7 +89,7 @@ az keyvault secret set \
 ### Step 4: Update App Configuration
 
 ```bash
-APPCONFIG_NAME="qwiser-prod-appconfig"
+APPCONFIG_NAME=$(jq -r '.appConfigName.value' deployment-outputs.json)
 
 # Moodle example values
 az appconfig kv set -n "$APPCONFIG_NAME" --key "lti:platform:issuer" --value "https://moodle.myuniversity.edu" --label production --yes
@@ -110,64 +108,6 @@ az appconfig kv set -n "$APPCONFIG_NAME" --key "sentinel" --value "$(date -u +%Y
 1. In LMS, add QWiser as an external tool to a course
 2. Click to launch QWiser
 3. Verify successful authentication and course context
-
----
-
-## DNS Configuration
-
-### Create CNAME Record
-
-Get Front Door hostname:
-```bash
-FRONTDOOR_HOSTNAME=$(az afd endpoint show \
-    --resource-group "qwiser-prod-rg" \
-    --profile-name "qwiser-prod-fd" \
-    --endpoint-name "qwiser-prod-fd-endpoint" \
-    --query "hostName" -o tsv)
-
-echo "CNAME target: $FRONTDOOR_HOSTNAME"
-```
-
-Create DNS record:
-```
-Type: CNAME
-Name: qwiser (or your subdomain)
-Value: qwiser-prod-fd-xxxxx.z01.azurefd.net
-TTL: 3600
-```
-
-### Add Custom Domain to Front Door
-
-```bash
-az afd custom-domain create \
-    --resource-group "qwiser-prod-rg" \
-    --profile-name "qwiser-prod-fd" \
-    --custom-domain-name "qwiser-university" \
-    --host-name "qwiser.myuniversity.edu" \
-    --certificate-type ManagedCertificate \
-    --minimum-tls-version TLS12
-```
-
-### Domain Validation
-
-Azure Front Door requires domain ownership verification:
-
-```bash
-# Check validation status
-az afd custom-domain show \
-    --resource-group "qwiser-prod-rg" \
-    --profile-name "qwiser-prod-fd" \
-    --custom-domain-name "qwiser-university" \
-    --query "validationProperties"
-```
-
-If validation requires TXT record, create:
-```
-Type: TXT
-Name: _dnsauth.qwiser
-Value: (provided validation token)
-TTL: 3600
-```
 
 ---
 
@@ -200,155 +140,6 @@ TTL: 3600
 | Database connectivity | Check internal-db logs for successful queries |
 | Redis connectivity | Check public-api logs for cache operations |
 | AI endpoints | Generate content, verify AI model responses |
-
----
-
-## Monitoring Setup
-
-### Azure Monitor Alerts
-
-Create alerts for critical metrics:
-
-```bash
-RESOURCE_GROUP="qwiser-prod-rg"
-ACTION_GROUP_ID="/subscriptions/.../resourceGroups/.../providers/microsoft.insights/actionGroups/qwiser-alerts"
-
-# High CPU Alert
-az monitor metrics alert create \
-    --name "AKS-High-CPU" \
-    --resource-group "$RESOURCE_GROUP" \
-    --scopes "/subscriptions/.../resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/qwiser-prod-aks" \
-    --condition "avg node_cpu_usage_percentage > 80" \
-    --window-size 5m \
-    --evaluation-frequency 1m \
-    --action "$ACTION_GROUP_ID"
-
-# Pod restart alert
-az monitor metrics alert create \
-    --name "Pod-Restarts" \
-    --resource-group "$RESOURCE_GROUP" \
-    --scopes "/subscriptions/.../resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/qwiser-prod-aks" \
-    --condition "sum kube_pod_container_status_restarts_total > 5" \
-    --window-size 15m \
-    --action "$ACTION_GROUP_ID"
-```
-
-### Log Analytics Queries
-
-Save these queries in Log Analytics:
-
-**Failed requests:**
-```kusto
-ContainerLog
-| where LogEntry contains "ERROR"
-| summarize count() by bin(TimeGenerated, 1h), ContainerID
-| order by TimeGenerated desc
-```
-
-**AI API latency:**
-```kusto
-ContainerLog
-| where LogEntry contains "ai_request_duration"
-| extend duration = extract("duration=([0-9.]+)", 1, LogEntry)
-| summarize avg(todouble(duration)) by bin(TimeGenerated, 5m)
-```
-
----
-
-## Backup Configuration
-
-### Export App Configuration
-
-```bash
-# Full export
-az appconfig kv export \
-    -n "$APPCONFIG_NAME" \
-    --label production \
-    --destination file \
-    --path ./backup/appconfig-$(date +%Y%m%d).json \
-    --format json
-
-# Export to Azure Storage
-az storage blob upload \
-    --account-name "$STORAGE_ACCOUNT" \
-    --container-name backups \
-    --file ./backup/appconfig-$(date +%Y%m%d).json \
-    --name "appconfig/appconfig-$(date +%Y%m%d).json"
-```
-
-### Export Key Vault Secrets (Metadata Only)
-
-```bash
-# List secrets (not values - security!)
-az keyvault secret list --vault-name "$KEYVAULT_NAME" -o table > ./backup/keyvault-secrets-list.txt
-```
-
-### Database Backup
-
-MySQL Flexible Server has automated backups. To create on-demand backup:
-
-```bash
-az mysql flexible-server backup create \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "qwiser-prod-mysql" \
-    --backup-name "manual-$(date +%Y%m%d)"
-```
-
----
-
-## Security Hardening
-
-### Post-Deployment Security Checklist
-
-- [ ] Disable Azure CLI access from public network (if not needed)
-- [ ] Enable Azure Defender recommendations
-- [ ] Review Network Security Groups
-- [ ] Enable audit logging for Key Vault
-- [ ] Configure Azure AD Conditional Access for admin users
-- [ ] Review RBAC assignments (principle of least privilege)
-
-### WAF Tuning
-
-After 1-2 weeks of production traffic, review WAF logs and adjust:
-
-```bash
-# View blocked requests
-az monitor log-analytics query \
-    --workspace "$WORKSPACE_ID" \
-    --analytics-query "AzureDiagnostics | where Category == 'FrontDoorWebApplicationFirewallLog' | where action_s == 'Block'"
-```
-
----
-
-## Maintenance Windows
-
-### Recommended Schedule
-
-| Task | Frequency | Duration | Impact |
-|------|-----------|----------|--------|
-| K8s upgrades | Monthly | 30-60 min | Rolling restarts |
-| Certificate renewal | Automatic | None | None |
-| Database maintenance | Weekly (Azure managed) | None | None |
-| Secret rotation | Quarterly | 15 min | Rolling restarts |
-
-### Pre-Maintenance Communication
-
-Template for IT announcement:
-```
-Subject: QWiser Scheduled Maintenance - [DATE]
-
-QWiser will undergo scheduled maintenance on [DATE] from [TIME] to [TIME].
-
-Expected impact:
-- Brief service interruptions (< 5 minutes)
-- Users may need to refresh their browser
-
-Actions required:
-- Save any in-progress work before maintenance window
-- No action needed after maintenance
-
-Contact: it-support@university.edu
-```
 
 ---
 

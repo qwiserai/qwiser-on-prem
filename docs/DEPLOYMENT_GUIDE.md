@@ -316,25 +316,27 @@ kubectl get ingress
 
 ## Phase 7: DNS & Front Door Configuration
 
-### 7.1 Create DNS CNAME Record
+### 7.1 Get Front Door Hostname
 
-Get the Front Door hostname:
 ```bash
 FRONTDOOR_HOSTNAME=$(jq -r '.frontDoorHostname.value' deployment-outputs.json)
-echo "Create CNAME record: qwiser.myuniversity.edu -> $FRONTDOOR_HOSTNAME"
-```
-
-Create the CNAME record in your DNS provider:
-```
-qwiser.myuniversity.edu CNAME <frontdoor-hostname>.azurefd.net
-```
-
-### 7.2 Add Custom Domain to Front Door
-
-```bash
 RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
 FRONTDOOR_NAME=$(jq -r '.frontDoorName.value' deployment-outputs.json)
 
+echo "Front Door hostname: $FRONTDOOR_HOSTNAME"
+```
+
+### 7.2 Create DNS CNAME Record
+
+In your DNS provider, create a CNAME record:
+
+```
+qwiser.myuniversity.edu  CNAME  <frontdoor-hostname>.azurefd.net
+```
+
+### 7.3 Add Custom Domain to Front Door
+
+```bash
 az afd custom-domain create \
     --resource-group "$RESOURCE_GROUP" \
     --profile-name "$FRONTDOOR_NAME" \
@@ -344,13 +346,59 @@ az afd custom-domain create \
     --minimum-tls-version TLS12
 ```
 
-**Verification**:
+### 7.4 Validate Domain Ownership
+
+Get the validation token:
+
 ```bash
 az afd custom-domain show \
     --resource-group "$RESOURCE_GROUP" \
     --profile-name "$FRONTDOOR_NAME" \
     --custom-domain-name "qwiser-custom" \
-    --query "{status: validationProperties.validationState, certificate: tlsSettings.certificateType}"
+    --query "validationProperties.validationToken" -o tsv
+```
+
+Create a TXT record in your DNS provider:
+
+```
+_dnsauth.qwiser.myuniversity.edu  TXT  <validation-token>
+```
+
+Wait for validation (can take a few minutes after DNS propagates):
+
+```bash
+az afd custom-domain show \
+    --resource-group "$RESOURCE_GROUP" \
+    --profile-name "$FRONTDOOR_NAME" \
+    --custom-domain-name "qwiser-custom" \
+    --query "validationProperties.validationState" -o tsv
+```
+
+Proceed when validation state is `Approved`.
+
+### 7.5 Associate Domain with Route
+
+```bash
+ENDPOINT_NAME=$(jq -r '.frontDoorEndpointName.value' deployment-outputs.json)
+
+az afd route update \
+    --resource-group "$RESOURCE_GROUP" \
+    --profile-name "$FRONTDOOR_NAME" \
+    --endpoint-name "$ENDPOINT_NAME" \
+    --route-name "default-route" \
+    --custom-domains "qwiser-custom"
+```
+
+### 7.6 Verify Certificate Provisioning
+
+Certificate provisioning takes 5-15 minutes after domain validation:
+
+```bash
+az afd custom-domain show \
+    --resource-group "$RESOURCE_GROUP" \
+    --profile-name "$FRONTDOOR_NAME" \
+    --custom-domain-name "qwiser-custom" \
+    --query "{domain: hostName, validation: validationProperties.validationState, certificate: tlsSettings.certificateType}"
 ```
 
 ---
@@ -478,7 +526,5 @@ rm deployment-outputs.json
 
 After successful deployment:
 
-1. **Configure LTI** (if using LMS integration) - See [POST_DEPLOYMENT.md](./POST_DEPLOYMENT.md)
-2. **Set up monitoring alerts** - Configure Azure Monitor alerts
-3. **Plan secret rotation** - See [SECRET_ROTATION.md](./SECRET_ROTATION.md)
-4. **Backup configuration** - Export App Config and Key Vault secrets
+1. **Configure LTI and test** - See [POST_DEPLOYMENT.md](./POST_DEPLOYMENT.md)
+2. **Plan secret rotation** - See [SECRET_ROTATION.md](./SECRET_ROTATION.md)
