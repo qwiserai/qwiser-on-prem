@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "10238832795038952558"
+      "templateHash": "8656835548713035458"
     }
   },
   "parameters": {
@@ -220,10 +220,6 @@
     "gpuNodeVmSize": {
       "type": "string",
       "defaultValue": "Standard_NC4as_T4_v3",
-      "allowedValues": [
-        "Standard_NC4as_T4_v3",
-        "Standard_NC8as_T4_v3"
-      ],
       "metadata": {
         "description": "GPU node pool VM size"
       }

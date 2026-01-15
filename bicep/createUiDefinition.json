@@ -521,9 +521,10 @@
                 "type": "Microsoft.Common.DropDown",
                 "label": "WAF Mode",
                 "defaultValue": "Prevention",
+                "visible": "[steps('security').wafSection.enableWaf]",
                 "toolTip": "Detection mode logs but doesn't block. Use Prevention for production.",
                 "constraints": {
-                  "required": true,
+                  "required": false,
                   "allowedValues": [
                     { "label": "Detection (Log only)", "value": "Detection" },
                     { "label": "Prevention (Block attacks)", "value": "Prevention" }

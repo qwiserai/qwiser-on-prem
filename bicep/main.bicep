@@ -140,10 +140,6 @@ param aksPodCidr string = '100.64.0.0/16'
 param deployGpuNodePool bool = true
 
 @description('GPU node pool VM size')
-@allowed([
-  'Standard_NC4as_T4_v3'
-  'Standard_NC8as_T4_v3'
-])
 param gpuNodeVmSize string = 'Standard_NC4as_T4_v3'
 
 // ============================================================================
