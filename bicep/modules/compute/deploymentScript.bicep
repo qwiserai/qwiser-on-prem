@@ -179,6 +179,21 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       echo "Installing NGINX Ingress Controller on AKS cluster..."
       echo "Cluster: $AKS_CLUSTER_NAME in $AKS_RESOURCE_GROUP"
 
+      # Wait for RBAC role assignment to propagate (can take up to 5 minutes)
+      echo "Waiting for RBAC permissions to propagate..."
+      for i in {1..30}; do
+        if az aks command invoke \
+          --resource-group "$AKS_RESOURCE_GROUP" \
+          --name "$AKS_CLUSTER_NAME" \
+          --command "kubectl version --client" \
+          --query "logs" -o tsv 2>/dev/null; then
+          echo "RBAC permissions active."
+          break
+        fi
+        echo "Waiting for RBAC propagation (attempt $i/30)..."
+        sleep 10
+      done
+
       # Create the Helm install command with values for internal LoadBalancer
       HELM_COMMAND="helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
         --namespace $NGINX_INGRESS_NAMESPACE \

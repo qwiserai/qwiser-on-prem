@@ -24,16 +24,11 @@
 
 ## Prerequisites Checklist
 
-Before starting deployment, ensure all prerequisites are met. See [PREREQUISITES.md](./PREREQUISITES.md) for detailed requirements.
+See [PREREQUISITES.md](./PREREQUISITES.md) for details.
 
-- [ ] Azure subscription with sufficient quotas
-- [ ] Azure CLI v2.67+ installed and authenticated
-- [ ] kubectl v1.28+ installed
-- [ ] Helm v3.14+ installed
-- [ ] Network access for private endpoints (Cloud Shell with VNet integration or VPN)
-- [ ] RBAC roles assigned (Owner on subscription or resource group)
-- [ ] Custom domain ready (e.g., `qwiser.myuniversity.edu`)
-- [ ] Container images available (SaaS deployment export or QWiser-provided)
+- [ ] QWiser ACR pull credentials
+- [ ] Azure subscription with Owner or Contributor + UAA
+- [ ] Azure CLI, kubectl, Helm, Git installed
 
 ---
 
@@ -64,107 +59,23 @@ AKS Cluster (Private)
     └─► Azure Container Registry (Private Endpoint)
 ```
 
-### Deployment Phases
-
-| Phase | Description | Duration |
-|-------|-------------|----------|
-| 1 | Infrastructure Deployment (Bicep) | 30-45 min |
-| 2 | Post-Deployment Configuration | 10-15 min |
-| 3 | AI Models Setup (Azure AI Foundry) | 15-30 min |
-| 4 | ML Models Download | 20-40 min |
-| 5 | Container Image Import | 10-20 min |
-| 6 | Kubernetes Deployment | 10-15 min |
-| 7 | DNS & Front Door Configuration | 5-10 min |
-| 8 | Verification | 10-15 min |
-
 ---
 
 ## Phase 1: Infrastructure Deployment
 
-### 1.1 Prepare Parameter File
+Use the **Deploy to Azure** button in the [README](../README.md). It provides guided configuration with built-in validation.
 
-Copy and customize the parameter file:
+If you prefer CLI, see `bicep/main.bicep` and `bicep/main.bicepparam`. If you know what you're doing.
 
-```bash
-cd infrastructure/bicep
-cp main.bicepparam main.prod.bicepparam
-```
+### Capture Outputs
 
-Edit `main.prod.bicepparam` with your values:
-
-```bicep
-using 'main.bicep'
-
-// Required - MUST customize
-param location = 'eastus'              // Your target region
-param environmentName = 'prod'         // Environment identifier
-param customDomain = 'qwiser.myuniversity.edu'  // Your domain
-param mysqlAdminLogin = 'qwiseradmin'  // MySQL admin username
-param mysqlAdminPassword = 'SECURE_PASSWORD_HERE'  // Strong password
-
-// Optional - defaults usually fine
-param namePrefix = 'qwiser'
-param deployGpuNodePool = true         // Set true if using GPU embeddings
-
-param tags = {
-  Environment: 'prod'
-  Application: 'QWiser'
-  ManagedBy: 'Bicep'
-}
-```
-
-### 1.2 Validate Deployment
+After deployment completes, save the outputs for later phases:
 
 ```bash
-az deployment sub what-if \
-    --location eastus \
-    --template-file main.bicep \
-    --parameters main.prod.bicepparam
-```
-
-**Verification**: Review the what-if output to ensure expected resources will be created.
-
-### 1.3 Deploy Infrastructure
-
-```bash
-az deployment sub create \
-    --name qwiser-university-$(date +%Y%m%d-%H%M%S) \
-    --location eastus \
-    --template-file main.bicep \
-    --parameters main.prod.bicepparam
-```
-
-**Verification**:
-```bash
-# Check deployment status
-az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.provisioningState"
-
-# Expected output: "Succeeded"
-```
-
-### 1.4 Capture Outputs
-
-```bash
-# Save outputs for later phases
 az deployment sub show \
-    --name qwiser-university-YYYYMMDD-HHMMSS \
+    --name <your-deployment-name> \
     --query "properties.outputs" \
     -o json > deployment-outputs.json
-
-# Key outputs you'll need:
-az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS \
-    --query "{
-        resourceGroup: properties.outputs.resourceGroupName.value,
-        keyVaultName: properties.outputs.keyVaultName.value,
-        appConfigName: properties.outputs.appConfigName.value,
-        acrLoginServer: properties.outputs.acrLoginServer.value,
-        aksClusterName: properties.outputs.aksClusterName.value,
-        mysqlFqdn: properties.outputs.mysqlServerFqdn.value,
-        redisHost: properties.outputs.redisHostName.value,
-        plsName: properties.outputs.privateLinkServiceName.value,
-        frontDoorHostname: properties.outputs.frontDoorHostname.value,
-        storageAccountName: properties.outputs.storageAccountName.value
-    }" -o table
 ```
 
 ---

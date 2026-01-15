@@ -3,18 +3,17 @@
 // ============================================================================
 // Purpose: Creates optional GPU node pool for embeddings-worker in AKS
 //
-// GPU Configuration:
-//   - Default SKU: Standard_NC4as_T4_v3 (4 vCPUs, 28 GiB RAM, 1x NVIDIA T4 16GB)
-//   - Alternative: Standard_NC8as_T4_v3 (8 vCPUs, 56 GiB RAM, 1x NVIDIA T4 16GB)
-//   - T4 GPU with 16GB VRAM is sufficient for bge-m3 + jina-colbert-v2 models
+// GPU Options (see createUiDefinition.json for full list):
+//   - T4 series: Standard_NC4as_T4_v3 (recommended for production)
+//   - Legacy: Standard_NC6 (K80, cheap for testing)
+//   - High-end: A100, H100, V100 for enterprise workloads
 //
 // IMPORTANT:
-//   - NCv3-series (Standard_NC6s_v3) was RETIRED September 2025 - do not use
 //   - GPU drivers: AKS managed GPU experience (automatic driver installation)
 //   - x86_64/amd64 architecture ONLY (Nuitka-compiled binaries)
 //
 // Node Labels and Taints:
-//   - Label: 'gpu': 'nvidia-t4' for nodeSelector
+//   - Label: 'hardware-type': 'gpu' for nodeSelector
 //   - Taint: 'nvidia.com/gpu=present:NoSchedule' to prevent non-GPU pods
 // ============================================================================
 
@@ -24,13 +23,7 @@ param aksClusterName string
 @description('GPU node pool name')
 param nodePoolName string = 'gpu'
 
-@description('GPU VM size (T4 series recommended)')
-@allowed([
-  'Standard_NC4as_T4_v3'   // 4 vCPUs, 28 GiB, 1x T4 16GB - Recommended
-  'Standard_NC8as_T4_v3'   // 8 vCPUs, 56 GiB, 1x T4 16GB - Higher capacity
-  'Standard_NC16as_T4_v3'  // 16 vCPUs, 110 GiB, 1x T4 16GB
-  'Standard_NC64as_T4_v3'  // 64 vCPUs, 440 GiB, 4x T4 16GB
-])
+@description('GPU VM size - validated by createUiDefinition.json')
 param gpuVmSize string = 'Standard_NC4as_T4_v3'
 
 @description('Initial node count')
@@ -87,7 +80,6 @@ resource gpuNodePool 'Microsoft.ContainerService/managedClusters/agentPools@2025
     // GPU-specific labels for nodeSelector
     nodeLabels: {
       'nodepool-type': 'gpu'
-      gpu: 'nvidia-t4'
       'hardware-type': 'gpu'
     }
     // Taint to prevent non-GPU workloads from scheduling

@@ -100,6 +100,14 @@
         "label": "Database",
         "elements": [
           {
+            "name": "mysqlAvailabilityWarning",
+            "type": "Microsoft.Common.InfoBox",
+            "options": {
+              "icon": "Warning",
+              "text": "MySQL Flexible Server availability varies by region and subscription. Before deploying, verify availability: az mysql flexible-server list-skus --location <region> -o table"
+            }
+          },
+          {
             "name": "mysqlSection",
             "type": "Microsoft.Common.Section",
             "label": "MySQL Configuration",

@@ -2,27 +2,13 @@
 
 Deploy QWiser to your own Azure infrastructure.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.7%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.7%2Fbicep%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.8%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.8%2Fbicep%2FcreateUiDefinition.json)
 
 ---
 
 ## What is QWiser?
 
 QWiser is an AI-powered learning platform that transforms educational content (PDFs, videos, YouTube, Wikipedia) into interactive knowledge trees, study materials, quizzes, and exams.
-
----
-
-## Prerequisites
-
-Before deploying, ensure you have:
-
-- [ ] Azure subscription with **Owner** or **Contributor + User Access Administrator** access
-- [ ] Required resource providers registered ([see PREREQUISITES.md](docs/PREREQUISITES.md))
-- [ ] **ACR pull credentials** (provided by QWiser — contact jonathan@qwiser.io)
-- [ ] Azure OpenAI access approved (or existing deployments)
-- [ ] A domain you control with ability to create DNS records (e.g., `yourdomain.com`)
-
-**Estimated deployment time**: 30-45 minutes for Azure resources, plus configuration.
 
 ---
 
@@ -43,42 +29,7 @@ Then continue to [Post-Deployment Steps](#post-deployment-steps).
 
 ### Option B: Deploy via CLI
 
-Clone the repo and deploy with full control over parameters:
-
-```bash
-git clone https://github.com/qwiserai/qwiser-on-prem.git
-cd qwiser-on-prem
-
-# Review and customize parameters
-cp bicep/main.bicepparam bicep/my-env.bicepparam
-# Edit bicep/my-env.bicepparam with your values
-
-# Login to Azure
-az login
-az account set --subscription "<your-subscription-id>"
-
-# Deploy (subscription-scoped - creates its own resource group)
-az deployment sub create \
-  --location <your-region> \
-  --template-file bicep/main.bicep \
-  --parameters bicep/my-env.bicepparam
-```
-
-Then continue to [Post-Deployment Steps](#post-deployment-steps).
-
----
-
-## Key Parameters
-
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `location` | Azure region | `westeurope`, `eastus` |
-| `environmentName` | Environment identifier | `prod`, `staging` |
-| `customDomain` | Full hostname you'll use (you create CNAME post-deploy) | `qwiser.yourdomain.com` |
-| `mysqlAdminLogin` | MySQL admin username | `qwiseradmin` |
-| `mysqlAdminPassword` | MySQL admin password | (secure password) |
-
-See [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for all parameters.
+If you prefer CLI over the portal, see `bicep/main.bicep` and `bicep/main.bicepparam`. You know what to do.
 
 ---
 
@@ -86,7 +37,7 @@ See [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for all parameters.
 
 The Bicep deployment creates:
 
-- **Compute**: Azure Kubernetes Service (AKS) with system and optional GPU node pools
+- **Compute**: Azure Kubernetes Service (AKS)
 - **Registry**: Azure Container Registry (ACR)
 - **Database**: Azure Database for MySQL Flexible Server
 - **Cache**: Azure Managed Redis
@@ -201,7 +152,34 @@ az afd custom-domain create \
   --certificate-type ManagedCertificate
 ```
 
-**Step 8d: Associate domain with route**
+**Step 8d: Validate domain ownership**
+
+Get the validation token:
+```bash
+az afd custom-domain show \
+  --resource-group <your-rg> \
+  --profile-name <your-fd-profile> \
+  --custom-domain-name qwiser-custom-domain \
+  --query "validationProperties.validationToken" -o tsv
+```
+
+Create a TXT record in your DNS:
+```
+_dnsauth.qwiser.yourdomain.com  TXT  <validation-token>
+```
+
+Wait for validation (can take a few minutes after DNS propagates):
+```bash
+az afd custom-domain show \
+  --resource-group <your-rg> \
+  --profile-name <your-fd-profile> \
+  --custom-domain-name qwiser-custom-domain \
+  --query "validationProperties.validationState" -o tsv
+```
+
+Proceed when validation state is `Approved`.
+
+**Step 8e: Associate domain with route**
 
 ```bash
 az afd route update \
@@ -212,13 +190,13 @@ az afd route update \
   --custom-domains qwiser-custom-domain
 ```
 
-Certificate provisioning takes 5-15 minutes. Check status:
+Certificate provisioning takes 5-15 minutes after domain validation. Check status:
 ```bash
 az afd custom-domain show \
   --resource-group <your-rg> \
   --profile-name <your-fd-profile> \
   --custom-domain-name qwiser-custom-domain \
-  --query "{domain:hostName, certStatus:tlsSettings.certificateType, validationState:validationProperties.validationState}"
+  --query "{domain:hostName, validationState:validationProperties.validationState, certStatus:tlsSettings.certificateType}"
 ```
 
 ### 9. Configure LTI Integration
