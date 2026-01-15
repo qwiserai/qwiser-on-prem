@@ -179,9 +179,10 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       echo "Installing NGINX Ingress Controller on AKS cluster..."
       echo "Cluster: $AKS_CLUSTER_NAME in $AKS_RESOURCE_GROUP"
 
-      # Explicitly login with managed identity
-      echo "Authenticating with managed identity..."
-      az login --identity --allow-no-subscriptions
+      # Explicitly login with user-assigned managed identity
+      echo "Authenticating with user-assigned managed identity..."
+      echo "Using client ID: $UAMI_CLIENT_ID"
+      az login --identity --username "$UAMI_CLIENT_ID" --allow-no-subscriptions
       az account show --query "{subscriptionId:id, user:user.name}" -o table
       echo "Authentication successful."
 
