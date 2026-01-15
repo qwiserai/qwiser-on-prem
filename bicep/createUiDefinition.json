@@ -1,0 +1,595 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "config": {
+      "isWizard": true,
+      "basics": {
+        "description": "Deploy QWiser University learning platform infrastructure to Azure.",
+        "subscription": {
+          "resourceProviders": [
+            "Microsoft.ContainerService",
+            "Microsoft.Network",
+            "Microsoft.Storage",
+            "Microsoft.DBforMySQL",
+            "Microsoft.Cache",
+            "Microsoft.ContainerRegistry",
+            "Microsoft.KeyVault",
+            "Microsoft.App",
+            "Microsoft.Cdn",
+            "Microsoft.OperationalInsights",
+            "Microsoft.Insights"
+          ]
+        },
+        "resourceGroup": {
+          "allowExisting": false
+        },
+        "location": {
+          "label": "Region",
+          "resourceTypes": [
+            "Microsoft.ContainerService/managedClusters",
+            "Microsoft.DBforMySQL/flexibleServers",
+            "Microsoft.Cache/redisEnterprise"
+          ]
+        }
+      }
+    },
+    "basics": [
+      {
+        "name": "environmentName",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Environment Name",
+        "toolTip": "Used for resource naming (e.g., prod, staging). Keep it short.",
+        "placeholder": "prod",
+        "constraints": {
+          "required": true,
+          "validations": [
+            {
+              "regex": "^[a-z0-9]{1,10}$",
+              "message": "Must be 1-10 lowercase alphanumeric characters."
+            }
+          ]
+        }
+      },
+      {
+        "name": "namePrefix",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Resource Name Prefix",
+        "defaultValue": "qwiser",
+        "toolTip": "Prefix for all Azure resource names. Use your university abbreviation.",
+        "placeholder": "qwiser",
+        "constraints": {
+          "required": true,
+          "validations": [
+            {
+              "regex": "^[a-z][a-z0-9-]{0,9}$",
+              "message": "Must be 1-10 characters, start with a letter, lowercase alphanumeric and hyphens only."
+            }
+          ]
+        }
+      },
+      {
+        "name": "customDomain",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Custom Domain",
+        "toolTip": "The domain your university will point to this deployment (e.g., qwiser.university.edu). You'll create a CNAME record after deployment.",
+        "placeholder": "qwiser.university.edu",
+        "constraints": {
+          "required": true,
+          "validations": [
+            {
+              "regex": "^[a-zA-Z0-9][a-zA-Z0-9.-]+[a-zA-Z0-9]$",
+              "message": "Must be a valid domain name."
+            }
+          ]
+        }
+      },
+      {
+        "name": "tags",
+        "type": "Microsoft.Common.TagsByResource",
+        "resources": [
+          "Microsoft.Resources/resourceGroups"
+        ],
+        "toolTip": "Tags to apply to all resources for cost tracking and organization."
+      }
+    ],
+    "steps": [
+      {
+        "name": "database",
+        "label": "Database",
+        "elements": [
+          {
+            "name": "mysqlSection",
+            "type": "Microsoft.Common.Section",
+            "label": "MySQL Configuration",
+            "elements": [
+              {
+                "name": "mysqlAdminLogin",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Administrator Login",
+                "toolTip": "MySQL admin username. Cannot be 'admin', 'administrator', 'root', etc.",
+                "placeholder": "qwiseradmin",
+                "constraints": {
+                  "required": true,
+                  "validations": [
+                    {
+                      "regex": "^[a-zA-Z][a-zA-Z0-9_]{2,63}$",
+                      "message": "Must start with a letter, 3-64 characters, alphanumeric and underscores only."
+                    },
+                    {
+                      "regex": "^(?!admin$|administrator$|root$|sa$|guest$|public$).*$",
+                      "message": "Cannot use reserved names like admin, administrator, root, sa, guest, public."
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "mysqlAdminPassword",
+                "type": "Microsoft.Common.PasswordBox",
+                "label": {
+                  "password": "Administrator Password",
+                  "confirmPassword": "Confirm Password"
+                },
+                "toolTip": "MySQL admin password. Must be at least 8 characters with uppercase, lowercase, and numbers.",
+                "constraints": {
+                  "required": true,
+                  "validationMessage": "Password must be 8-128 characters with at least one uppercase, one lowercase, and one number."
+                },
+                "options": {
+                  "hideConfirmation": false
+                }
+              },
+              {
+                "name": "mysqlSkuTier",
+                "type": "Microsoft.Common.DropDown",
+                "label": "SKU Tier",
+                "defaultValue": "GeneralPurpose",
+                "toolTip": "Burstable is cheapest but doesn't support HA. GeneralPurpose recommended for production.",
+                "constraints": {
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Burstable (Dev/Test)", "value": "Burstable" },
+                    { "label": "General Purpose (Recommended)", "value": "GeneralPurpose" },
+                    { "label": "Memory Optimized", "value": "MemoryOptimized" }
+                  ]
+                }
+              },
+              {
+                "name": "mysqlSkuName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "SKU Name",
+                "defaultValue": "Standard_D2ds_v4",
+                "toolTip": "VM size for MySQL server. Standard_D2ds_v4 = 2 vCPUs, 8GB RAM.",
+                "constraints": {
+                  "required": true
+                }
+              },
+              {
+                "name": "mysqlStorageSizeGB",
+                "type": "Microsoft.Common.Slider",
+                "label": "Storage Size (GB)",
+                "defaultValue": 64,
+                "min": 20,
+                "max": 16384,
+                "showStepMarkers": false,
+                "toolTip": "Initial storage allocation. Can be increased later but not decreased."
+              },
+              {
+                "name": "mysqlHighAvailabilityMode",
+                "type": "Microsoft.Common.DropDown",
+                "label": "High Availability",
+                "defaultValue": "Disabled",
+                "toolTip": "Zone-redundant HA requires GeneralPurpose or MemoryOptimized tier.",
+                "constraints": {
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Disabled", "value": "Disabled" },
+                    { "label": "Same Zone", "value": "SameZone" },
+                    { "label": "Zone Redundant (Recommended for prod)", "value": "ZoneRedundant" }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "redisSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Redis Configuration",
+            "elements": [
+              {
+                "name": "redisSkuName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "SKU Name",
+                "defaultValue": "Balanced_B5",
+                "toolTip": "Redis Enterprise SKU. Balanced_B5 = 6GB cache. See Azure docs for options.",
+                "constraints": {
+                  "required": true
+                }
+              },
+              {
+                "name": "redisSkuCapacity",
+                "type": "Microsoft.Common.Slider",
+                "label": "Capacity",
+                "defaultValue": 2,
+                "min": 2,
+                "max": 10,
+                "showStepMarkers": true,
+                "toolTip": "Number of Redis nodes for the cluster."
+              },
+              {
+                "name": "redisHighAvailability",
+                "type": "Microsoft.Common.DropDown",
+                "label": "High Availability",
+                "defaultValue": "Enabled",
+                "toolTip": "Enable HA for automatic failover. Recommended for production.",
+                "constraints": {
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Enabled (Recommended)", "value": "Enabled" },
+                    { "label": "Disabled", "value": "Disabled" }
+                  ]
+                }
+              },
+              {
+                "name": "redisZones",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Availability Zones",
+                "defaultValue": "",
+                "toolTip": "Comma-separated zones (e.g., 1,2,3) for zone redundancy. Leave empty for no zone preference.",
+                "constraints": {
+                  "required": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "compute",
+        "label": "Compute",
+        "elements": [
+          {
+            "name": "aksSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Kubernetes (AKS) Configuration",
+            "elements": [
+              {
+                "name": "kubernetesVersion",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Kubernetes Version",
+                "defaultValue": "",
+                "toolTip": "Leave empty for latest stable version. Otherwise specify version like '1.29'.",
+                "constraints": {
+                  "required": false
+                }
+              },
+              {
+                "name": "aksEnablePrivateCluster",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Private Cluster",
+                "defaultValue": true,
+                "toolTip": "Recommended. API server only accessible via private network. Disable only if you need public kubectl access."
+              },
+              {
+                "name": "aksAuthorizedIPRanges",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Authorized IP Ranges",
+                "defaultValue": "",
+                "toolTip": "Only applies if private cluster is disabled. Comma-separated CIDRs allowed to reach API server.",
+                "constraints": {
+                  "required": false
+                }
+              },
+              {
+                "name": "aksSystemNodeVmSize",
+                "type": "Microsoft.Common.DropDown",
+                "label": "System Node VM Size",
+                "defaultValue": "Standard_D4s_v5",
+                "toolTip": "VM size for AKS system nodes. D4s_v5 = 4 vCPUs, 16GB RAM.",
+                "constraints": {
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Standard_D2s_v5 (2 vCPU, 8GB)", "value": "Standard_D2s_v5" },
+                    { "label": "Standard_D4s_v5 (4 vCPU, 16GB) - Recommended", "value": "Standard_D4s_v5" },
+                    { "label": "Standard_D8s_v5 (8 vCPU, 32GB)", "value": "Standard_D8s_v5" }
+                  ]
+                }
+              },
+              {
+                "name": "aksSystemNodeCount",
+                "type": "Microsoft.Common.Slider",
+                "label": "Initial Node Count",
+                "defaultValue": 3,
+                "min": 2,
+                "max": 10,
+                "showStepMarkers": true,
+                "toolTip": "Initial number of nodes. 3 recommended for HA across availability zones."
+              },
+              {
+                "name": "aksSystemNodeMinCount",
+                "type": "Microsoft.Common.Slider",
+                "label": "Minimum Node Count (Autoscaling)",
+                "defaultValue": 2,
+                "min": 1,
+                "max": 10,
+                "showStepMarkers": true,
+                "toolTip": "Minimum nodes for autoscaler. At least 2 recommended for availability."
+              },
+              {
+                "name": "aksSystemNodeMaxCount",
+                "type": "Microsoft.Common.Slider",
+                "label": "Maximum Node Count (Autoscaling)",
+                "defaultValue": 10,
+                "min": 3,
+                "max": 50,
+                "showStepMarkers": false,
+                "toolTip": "Maximum nodes for autoscaler. Set based on expected peak usage."
+              }
+            ]
+          },
+          {
+            "name": "gpuSection",
+            "type": "Microsoft.Common.Section",
+            "label": "GPU Node Pool (Optional)",
+            "elements": [
+              {
+                "name": "gpuInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "options": {
+                  "icon": "Info",
+                  "text": "GPU nodes accelerate embedding generation. Not required - CPU embedding works but is slower."
+                }
+              },
+              {
+                "name": "deployGpuNodePool",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Deploy GPU Node Pool",
+                "defaultValue": false,
+                "toolTip": "Deploy an additional node pool with NVIDIA T4 GPUs for faster embeddings."
+              },
+              {
+                "name": "gpuNodeVmSize",
+                "type": "Microsoft.Common.DropDown",
+                "label": "GPU VM Size",
+                "defaultValue": "Standard_NC4as_T4_v3",
+                "toolTip": "VM size for GPU nodes. Both have NVIDIA T4 GPU.",
+                "constraints": {
+                  "required": false,
+                  "allowedValues": [
+                    { "label": "Standard_NC4as_T4_v3 (4 vCPU, 28GB, 1x T4)", "value": "Standard_NC4as_T4_v3" },
+                    { "label": "Standard_NC8as_T4_v3 (8 vCPU, 56GB, 1x T4)", "value": "Standard_NC8as_T4_v3" }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "security",
+        "label": "Security",
+        "elements": [
+          {
+            "name": "storageSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Storage Security",
+            "elements": [
+              {
+                "name": "storageAllowSharedKeyAccess",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Allow Storage Shared Key Access",
+                "defaultValue": true,
+                "toolTip": "Enable for simpler IT uploads to ML models file share. Disable for Entra ID-only authentication (more secure but requires RBAC setup)."
+              }
+            ]
+          },
+          {
+            "name": "wafSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Web Application Firewall",
+            "elements": [
+              {
+                "name": "enableWaf",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable WAF on Front Door",
+                "defaultValue": true,
+                "toolTip": "Recommended. Protects against OWASP Top 10 attacks, bots, and DDoS."
+              },
+              {
+                "name": "wafMode",
+                "type": "Microsoft.Common.DropDown",
+                "label": "WAF Mode",
+                "defaultValue": "Prevention",
+                "toolTip": "Detection mode logs but doesn't block. Use Prevention for production.",
+                "constraints": {
+                  "required": true,
+                  "allowedValues": [
+                    { "label": "Detection (Log only)", "value": "Detection" },
+                    { "label": "Prevention (Block attacks)", "value": "Prevention" }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "workloadSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Workload Identity",
+            "elements": [
+              {
+                "name": "workloadNamespace",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Kubernetes Namespace",
+                "defaultValue": "default",
+                "toolTip": "Kubernetes namespace where QWiser services will be deployed. Federated credentials are bound to this namespace.",
+                "constraints": {
+                  "required": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "networking",
+        "label": "Networking (Advanced)",
+        "elements": [
+          {
+            "name": "networkingInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "options": {
+              "icon": "Info",
+              "text": "Default values use 10.200.x.x range to minimize overlap with common enterprise networks. Only change if these ranges conflict with existing campus or peered Azure networks."
+            }
+          },
+          {
+            "name": "vnetSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Virtual Network",
+            "elements": [
+              {
+                "name": "vnetAddressPrefix",
+                "type": "Microsoft.Common.TextBox",
+                "label": "VNet Address Space",
+                "defaultValue": "10.200.0.0/16",
+                "toolTip": "Virtual network CIDR block. Provides 65,536 IP addresses. Change if this overlaps with existing networks.",
+                "constraints": {
+                  "required": true,
+                  "validations": [
+                    {
+                      "regex": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$",
+                      "message": "Must be a valid CIDR notation (e.g., 10.200.0.0/16)."
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "peSubnetPrefix",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Private Endpoints Subnet",
+                "defaultValue": "10.200.0.0/24",
+                "toolTip": "Subnet for Azure PaaS private endpoints. Uses ~11 IPs currently. /24 provides ample headroom.",
+                "constraints": {
+                  "required": true,
+                  "validations": [
+                    {
+                      "regex": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$",
+                      "message": "Must be a valid CIDR notation (e.g., 10.200.0.0/24)."
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "aksNodesSubnetPrefix",
+                "type": "Microsoft.Common.TextBox",
+                "label": "AKS Nodes Subnet",
+                "defaultValue": "10.200.4.0/22",
+                "toolTip": "Subnet for Kubernetes worker nodes. /22 provides 1024 IPs for cluster autoscaling.",
+                "constraints": {
+                  "required": true,
+                  "validations": [
+                    {
+                      "regex": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$",
+                      "message": "Must be a valid CIDR notation (e.g., 10.200.4.0/22)."
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "aciSubnetPrefix",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Deployment Scripts Subnet",
+                "defaultValue": "10.200.8.0/27",
+                "toolTip": "Subnet for deployment script containers (ACI). /27 provides 32 IPs, only used during deployment.",
+                "constraints": {
+                  "required": true,
+                  "validations": [
+                    {
+                      "regex": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$",
+                      "message": "Must be a valid CIDR notation (e.g., 10.200.8.0/27)."
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "podNetworkSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Pod Networking",
+            "elements": [
+              {
+                "name": "aksPodCidr",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Pod CIDR",
+                "defaultValue": "100.64.0.0/16",
+                "toolTip": "Internal address range for Kubernetes pods (Azure CNI Overlay). Uses CGNAT range which is unlikely to conflict with campus networks.",
+                "constraints": {
+                  "required": true,
+                  "validations": [
+                    {
+                      "regex": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$",
+                      "message": "Must be a valid CIDR notation (e.g., 100.64.0.0/16)."
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "nginxIngressPrivateIp",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Ingress Load Balancer IP",
+                "defaultValue": "10.200.4.250",
+                "toolTip": "Static IP for the internal load balancer. Must be within the AKS nodes subnet range.",
+                "constraints": {
+                  "required": true,
+                  "validations": [
+                    {
+                      "regex": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$",
+                      "message": "Must be a valid IP address (e.g., 10.200.4.250)."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "environmentName": "[basics('environmentName')]",
+      "namePrefix": "[basics('namePrefix')]",
+      "customDomain": "[basics('customDomain')]",
+      "tags": "[basics('tags')]",
+      "mysqlAdminLogin": "[steps('database').mysqlSection.mysqlAdminLogin]",
+      "mysqlAdminPassword": "[steps('database').mysqlSection.mysqlAdminPassword]",
+      "mysqlSkuTier": "[steps('database').mysqlSection.mysqlSkuTier]",
+      "mysqlSkuName": "[steps('database').mysqlSection.mysqlSkuName]",
+      "mysqlStorageSizeGB": "[steps('database').mysqlSection.mysqlStorageSizeGB]",
+      "mysqlHighAvailabilityMode": "[steps('database').mysqlSection.mysqlHighAvailabilityMode]",
+      "redisSkuName": "[steps('database').redisSection.redisSkuName]",
+      "redisSkuCapacity": "[steps('database').redisSection.redisSkuCapacity]",
+      "redisHighAvailability": "[steps('database').redisSection.redisHighAvailability]",
+      "redisZones": "[if(empty(steps('database').redisSection.redisZones), createArray(), split(steps('database').redisSection.redisZones, ','))]",
+      "kubernetesVersion": "[steps('compute').aksSection.kubernetesVersion]",
+      "aksEnablePrivateCluster": "[steps('compute').aksSection.aksEnablePrivateCluster]",
+      "aksAuthorizedIPRanges": "[if(empty(steps('compute').aksSection.aksAuthorizedIPRanges), createArray(), split(steps('compute').aksSection.aksAuthorizedIPRanges, ','))]",
+      "aksSystemNodeVmSize": "[steps('compute').aksSection.aksSystemNodeVmSize]",
+      "aksSystemNodeCount": "[steps('compute').aksSection.aksSystemNodeCount]",
+      "aksSystemNodeMinCount": "[steps('compute').aksSection.aksSystemNodeMinCount]",
+      "aksSystemNodeMaxCount": "[steps('compute').aksSection.aksSystemNodeMaxCount]",
+      "deployGpuNodePool": "[steps('compute').gpuSection.deployGpuNodePool]",
+      "gpuNodeVmSize": "[steps('compute').gpuSection.gpuNodeVmSize]",
+      "storageAllowSharedKeyAccess": "[steps('security').storageSection.storageAllowSharedKeyAccess]",
+      "enableWaf": "[steps('security').wafSection.enableWaf]",
+      "wafMode": "[steps('security').wafSection.wafMode]",
+      "workloadNamespace": "[steps('security').workloadSection.workloadNamespace]",
+      "vnetAddressPrefix": "[steps('networking').vnetSection.vnetAddressPrefix]",
+      "peSubnetPrefix": "[steps('networking').vnetSection.peSubnetPrefix]",
+      "aksNodesSubnetPrefix": "[steps('networking').vnetSection.aksNodesSubnetPrefix]",
+      "aciSubnetPrefix": "[steps('networking').vnetSection.aciSubnetPrefix]",
+      "aksPodCidr": "[steps('networking').podNetworkSection.aksPodCidr]",
+      "nginxIngressPrivateIp": "[steps('networking').podNetworkSection.nginxIngressPrivateIp]"
+    }
+  }
+}

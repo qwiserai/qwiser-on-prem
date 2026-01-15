@@ -28,17 +28,17 @@ param tags object = {}
 // Networking Parameters
 // ============================================================================
 
-@description('VNet address space CIDR')
-param vnetAddressPrefix string = '10.0.0.0/16'
+@description('Virtual network address space. Uses 10.200.x.x range to minimize overlap with common enterprise networks. Change if this conflicts with existing campus or Azure networks.')
+param vnetAddressPrefix string = '10.200.0.0/16'
 
-@description('Subnet for private endpoints and PLS NAT IPs')
-param peSubnetPrefix string = '10.0.0.0/24'
+@description('Subnet for private endpoints (Azure PaaS services connect here via Private Link). Currently uses ~11 IPs for private endpoints and Private Link Service NAT.')
+param peSubnetPrefix string = '10.200.0.0/24'
 
-@description('Subnet for AKS node pools (/22 = 1024 IPs)')
-param aksNodesSubnetPrefix string = '10.0.1.0/22'
+@description('Subnet for AKS worker nodes. Size /22 provides 1024 IPs to support cluster autoscaling.')
+param aksNodesSubnetPrefix string = '10.200.4.0/22'
 
-@description('Subnet for ACI/deploymentScript (delegated)')
-param aciSubnetPrefix string = '10.0.2.0/27'
+@description('Subnet for deployment scripts (temporary containers used during infrastructure setup). Requires Azure Container Instances delegation.')
+param aciSubnetPrefix string = '10.200.8.0/27'
 
 // ============================================================================
 // Storage Parameters
@@ -126,8 +126,8 @@ param aksSystemNodeMinCount int = 2
 @description('AKS system node pool max count for autoscaling')
 param aksSystemNodeMaxCount int = 10
 
-@description('Pod CIDR for Azure CNI Overlay (verify no overlap with on-prem)')
-param aksPodCidr string = '192.168.0.0/16'
+@description('Pod CIDR for Azure CNI Overlay. Uses CGNAT range (100.64.x.x) which is unlikely to conflict with campus networks. Only change if your network already uses this range.')
+param aksPodCidr string = '100.64.0.0/16'
 
 @description('Deploy optional GPU node pool for embeddings-worker')
 param deployGpuNodePool bool = false
@@ -144,7 +144,7 @@ param gpuNodeVmSize string = 'Standard_NC4as_T4_v3'
 // ============================================================================
 
 @description('Static private IP for NGINX Ingress internal LoadBalancer (must be in AKS nodes subnet range)')
-param nginxIngressPrivateIp string = '10.0.1.250'
+param nginxIngressPrivateIp string = '10.200.4.250'
 
 @description('Enable Web Application Firewall on Front Door')
 param enableWaf bool = true

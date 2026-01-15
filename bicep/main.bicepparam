@@ -20,8 +20,10 @@ param tags = {
   DeployedOn: '' // Will be set at deploy time
 }
 
-// Networking - defaults are usually fine, customize if needed
-// param vnetAddressPrefix = '10.0.0.0/16'
-// param peSubnetPrefix = '10.0.0.0/24'
-// param aksNodesSubnetPrefix = '10.0.1.0/22'
-// param aciSubnetPrefix = '10.0.5.0/27'
+// Networking - defaults use 10.200.x.x to minimize overlap with common enterprise networks
+// Customize only if these conflict with existing campus or peered networks
+// param vnetAddressPrefix = '10.200.0.0/16'
+// param peSubnetPrefix = '10.200.0.0/24'
+// param aksNodesSubnetPrefix = '10.200.4.0/22'
+// param aciSubnetPrefix = '10.200.8.0/27'
+// param aksPodCidr = '100.64.0.0/16'

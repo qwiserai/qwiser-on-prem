@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "14168475093946787124"
+      "templateHash": "7462194671160361420"
     }
   },
   "parameters": {
@@ -35,30 +35,30 @@
     },
     "vnetAddressPrefix": {
       "type": "string",
-      "defaultValue": "10.0.0.0/16",
+      "defaultValue": "10.200.0.0/16",
       "metadata": {
-        "description": "VNet address space CIDR"
+        "description": "Virtual network address space. Uses 10.200.x.x range to minimize overlap with common enterprise networks. Change if this conflicts with existing campus or Azure networks."
       }
     },
     "peSubnetPrefix": {
       "type": "string",
-      "defaultValue": "10.0.0.0/24",
+      "defaultValue": "10.200.0.0/24",
       "metadata": {
-        "description": "Subnet for private endpoints and PLS NAT IPs"
+        "description": "Subnet for private endpoints (Azure PaaS services connect here via Private Link). Currently uses ~11 IPs for private endpoints and Private Link Service NAT."
       }
     },
     "aksNodesSubnetPrefix": {
       "type": "string",
-      "defaultValue": "10.0.1.0/22",
+      "defaultValue": "10.200.4.0/22",
       "metadata": {
-        "description": "Subnet for AKS node pools (/22 = 1024 IPs)"
+        "description": "Subnet for AKS worker nodes. Size /22 provides 1024 IPs to support cluster autoscaling."
       }
     },
     "aciSubnetPrefix": {
       "type": "string",
-      "defaultValue": "10.0.2.0/27",
+      "defaultValue": "10.200.8.0/27",
       "metadata": {
-        "description": "Subnet for ACI/deploymentScript (delegated)"
+        "description": "Subnet for deployment scripts (temporary containers used during infrastructure setup). Requires Azure Container Instances delegation."
       }
     },
     "storageAllowSharedKeyAccess": {
@@ -202,9 +202,9 @@
     },
     "aksPodCidr": {
       "type": "string",
-      "defaultValue": "192.168.0.0/16",
+      "defaultValue": "100.64.0.0/16",
       "metadata": {
-        "description": "Pod CIDR for Azure CNI Overlay (verify no overlap with on-prem)"
+        "description": "Pod CIDR for Azure CNI Overlay. Uses CGNAT range (100.64.x.x) which is unlikely to conflict with campus networks. Only change if your network already uses this range."
       }
     },
     "deployGpuNodePool": {
@@ -227,7 +227,7 @@
     },
     "nginxIngressPrivateIp": {
       "type": "string",
-      "defaultValue": "10.0.1.250",
+      "defaultValue": "10.200.4.250",
       "metadata": {
         "description": "Static private IP for NGINX Ingress internal LoadBalancer (must be in AKS nodes subnet range)"
       }
