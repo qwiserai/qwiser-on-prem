@@ -460,6 +460,17 @@ module mcRgReader 'modules/identity/mc-rg-reader.bicep' = {
   ]
 }
 
+// --- AKS Cluster Admin Role (for deploymentScript az aks command invoke) ---
+// Required for managed identity to run commands on the AKS cluster
+module aksClusterAdmin 'modules/identity/aks-cluster-admin.bicep' = {
+  scope: rg
+  name: 'deploy-aks-cluster-admin-role'
+  params: {
+    aksClusterName: aks.outputs.aksClusterName
+    principalId: managedIdentity.outputs.principalId
+  }
+}
+
 // ============================================================================
 // Phase 2 (continued): Ingress Path - Task 2.7
 // ============================================================================
@@ -501,6 +512,7 @@ module nginxIngress 'modules/compute/deploymentScript.bicep' = {
   }
   dependsOn: [
     mcRgReader // Ensure Reader role on MC_ RG is assigned before script runs
+    aksClusterAdmin // Ensure Cluster Admin role is assigned before script runs
   ]
 }
 

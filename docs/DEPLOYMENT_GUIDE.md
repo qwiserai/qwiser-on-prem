@@ -493,6 +493,46 @@ If issues persist:
 
 ---
 
+## Cleanup
+
+### Redeploying After Failure
+
+If deployment fails mid-way (wrong SKU, quota issues, etc.), use the **Redeploy** button in Azure Portal.
+
+> **Important**: Azure Portal may reset some inputs to defaults in the redeploy menu. Verify all parameters match your original choices before redeploying.
+
+### Full Cleanup (Start Fresh)
+
+If you need to delete everything and start over:
+
+```bash
+# 1. Delete the main resource group
+az group delete --name qwiser-prod-rg --yes
+
+# 2. Delete the MC_ resource group (AKS node resources)
+az group delete --name MC_qwiser-prod-rg_qwiser-prod-aks_eastus --yes
+```
+
+**Wait 15-20 minutes** for both resource groups to fully delete before redeploying.
+
+### App Configuration Soft-Delete
+
+App Configuration has soft-delete enabled. After deleting the resource group:
+
+**If `enablePurgeProtection` was `true` (default):**
+- Cannot reuse the same name for 7 days
+- Either wait 7 days, or change `namePrefix`/`environmentName` for redeployment
+
+**If `enablePurgeProtection` was `false`:**
+```bash
+# Purge immediately and reuse the same name
+az appconfig purge --name qwiser-prod-appconfig --location eastus --yes
+```
+
+> **Tip**: For test/dev deployments, set `enablePurgeProtection: false` to simplify cleanup.
+
+---
+
 ## Next Steps
 
 After successful deployment:

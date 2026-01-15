@@ -211,6 +211,7 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
         --set controller.resources.requests.memory=256Mi \
         --set controller.resources.limits.cpu=1000m \
         --set controller.resources.limits.memory=1Gi \
+        --set controller.containerSecurityContext.runAsUser=101 \
         --set controller.containerSecurityContext.runAsNonRoot=true \
         --set controller.containerSecurityContext.allowPrivilegeEscalation=false \
         --wait \
