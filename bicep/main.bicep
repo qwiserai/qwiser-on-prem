@@ -11,9 +11,6 @@ targetScope = 'subscription'
 // Parameters
 // ============================================================================
 
-@description('Azure region for all resources. Must support all required services.')
-param location string
-
 @description('Environment name used for resource naming (e.g., prod, staging)')
 @minLength(1)
 @maxLength(10)
@@ -176,6 +173,9 @@ param customDomain string
 // ============================================================================
 // Variables
 // ============================================================================
+
+// Derive location from deployment region (user selects in Portal's region dropdown)
+var location = deployment().location
 
 var resourceGroupName = '${namePrefix}-${environmentName}-rg'
 var namingPrefix = '${namePrefix}-${environmentName}'

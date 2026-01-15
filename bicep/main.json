@@ -5,16 +5,10 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "5876334732529760971"
+      "templateHash": "14168475093946787124"
     }
   },
   "parameters": {
-    "location": {
-      "type": "string",
-      "metadata": {
-        "description": "Azure region for all resources. Must support all required services."
-      }
-    },
     "environmentName": {
       "type": "string",
       "minLength": 1,
@@ -271,17 +265,18 @@
     }
   },
   "variables": {
+    "location": "[deployment().location]",
     "resourceGroupName": "[format('{0}-{1}-rg', parameters('namePrefix'), parameters('environmentName'))]",
     "namingPrefix": "[format('{0}-{1}', parameters('namePrefix'), parameters('environmentName'))]",
     "aksClusterName": "[format('{0}-aks', variables('namingPrefix'))]",
-    "nodeResourceGroupName": "[format('MC_{0}_{1}_{2}', variables('resourceGroupName'), variables('aksClusterName'), parameters('location'))]"
+    "nodeResourceGroupName": "[format('MC_{0}_{1}_{2}', variables('resourceGroupName'), variables('aksClusterName'), variables('location'))]"
   },
   "resources": [
     {
       "type": "Microsoft.Resources/resourceGroups",
       "apiVersion": "2024-03-01",
       "name": "[variables('resourceGroupName')]",
-      "location": "[parameters('location')]",
+      "location": "[variables('location')]",
       "tags": "[parameters('tags')]"
     },
     {
@@ -318,7 +313,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -522,7 +517,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "vnetId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-vnet'), '2025-04-01').outputs.vnetId.value]"
@@ -854,7 +849,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -1032,7 +1027,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -1249,7 +1244,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -1448,7 +1443,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -1845,7 +1840,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -2023,7 +2018,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -2357,7 +2352,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -2647,7 +2642,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -3227,7 +3222,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -3768,7 +3763,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -4093,7 +4088,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "namingPrefix": {
             "value": "[variables('namingPrefix')]"
@@ -4255,7 +4250,7 @@
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-private-link-service'), '2025-04-01').outputs.plsId.value]"
           },
           "privateLinkServiceLocation": {
-            "value": "[parameters('location')]"
+            "value": "[variables('location')]"
           },
           "originPrivateIpAddress": {
             "value": "[parameters('nginxIngressPrivateIp')]"

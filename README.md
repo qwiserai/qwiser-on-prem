@@ -1,6 +1,8 @@
-# QWiser University Deployment
+# QWiser On-Premises Deployment
 
-One-click deployment of QWiser to your Azure subscription.
+Deploy QWiser to your own Azure infrastructure.
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fmain%2Fbicep%2Fmain.json)
 
 ---
 
@@ -16,124 +18,228 @@ Before deploying, ensure you have:
 
 - [ ] Azure subscription with **Owner** or **Contributor + User Access Administrator** access
 - [ ] Required resource providers registered ([see PREREQUISITES.md](docs/PREREQUISITES.md))
-- [ ] **ACR pull credentials** (provided by QWiser)
+- [ ] **ACR pull credentials** (provided by QWiser — contact jonathan@qwiser.io)
 - [ ] Azure OpenAI access approved (or existing deployments)
-- [ ] Custom domain ready (e.g., `qwiser.university.edu`)
+- [ ] A domain you control with ability to create DNS records (e.g., `yourdomain.com`)
 
 **Estimated deployment time**: 30-45 minutes for Azure resources, plus configuration.
 
 ---
 
-## Deploy to Azure
+## Quick Start
 
-Click the button below to deploy QWiser infrastructure to your Azure subscription:
+### Option A: One-Click Deploy
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fmain%2Fbicep%2Fmain.json)
+Click the button at the top of this page, fill in the parameters, and deploy.
 
-**What gets deployed:**
-- Azure Kubernetes Service (AKS) with system and GPU node pools
-- Azure Container Registry (ACR) for image storage
-- Azure Database for MySQL Flexible Server
-- Azure Managed Redis
-- Azure Key Vault for secrets
-- Azure App Configuration for centralized config
-- Azure Front Door for global load balancing and WAF
-- Azure Storage Account for blob storage
-- Virtual Network with private endpoints
-- Log Analytics workspace for monitoring
+After deployment completes, clone this repo for post-deployment scripts:
+
+```bash
+git clone https://github.com/qwiserai/qwiser-on-prem.git
+cd qwiser-on-prem
+```
+
+Then continue to [Post-Deployment Steps](#post-deployment-steps).
+
+### Option B: Deploy via CLI
+
+Clone the repo and deploy with full control over parameters:
+
+```bash
+git clone https://github.com/qwiserai/qwiser-on-prem.git
+cd qwiser-on-prem
+
+# Review and customize parameters
+cp bicep/main.bicepparam bicep/my-env.bicepparam
+# Edit bicep/my-env.bicepparam with your values
+
+# Login to Azure
+az login
+az account set --subscription "<your-subscription-id>"
+
+# Deploy (subscription-scoped - creates its own resource group)
+az deployment sub create \
+  --location <your-region> \
+  --template-file bicep/main.bicep \
+  --parameters bicep/my-env.bicepparam
+```
+
+Then continue to [Post-Deployment Steps](#post-deployment-steps).
+
+---
+
+## Key Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `location` | Azure region | `westeurope`, `eastus` |
+| `environmentName` | Environment identifier | `prod`, `staging` |
+| `customDomain` | Full hostname you'll use (you create CNAME post-deploy) | `qwiser.yourdomain.com` |
+| `mysqlAdminLogin` | MySQL admin username | `qwiseradmin` |
+| `mysqlAdminPassword` | MySQL admin password | (secure password) |
+
+See [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for all parameters.
+
+---
+
+## What Gets Deployed
+
+The Bicep deployment creates:
+
+- **Compute**: Azure Kubernetes Service (AKS) with system and optional GPU node pools
+- **Registry**: Azure Container Registry (ACR)
+- **Database**: Azure Database for MySQL Flexible Server
+- **Cache**: Azure Managed Redis
+- **Security**: Azure Key Vault, Virtual Network with private endpoints
+- **Config**: Azure App Configuration
+- **Ingress**: Azure Front Door with WAF
+- **Storage**: Azure Storage Account
+- **Monitoring**: Log Analytics workspace, Application Insights
 
 ---
 
 ## Post-Deployment Steps
 
-After the Azure deployment completes, follow these steps in order:
+After infrastructure deployment, complete these steps:
 
-### 1. Import Container Images
+### 1. Approve Private Endpoint Connection
 
-Import QWiser container images to your ACR using the credentials provided.
+Front Door's private endpoint to your Private Link Service needs approval:
 
 ```bash
-# Linux/macOS
+./scripts/approve-pe-connection.sh --resource-group <your-rg>
+```
+
+### 2. Import Container Images
+
+Import QWiser container images to your ACR:
+
+```bash
 ./scripts/import-images.sh \
     --source-user <provided-by-qwiser> \
     --source-password <provided-by-qwiser> \
     --target-acr <your-acr-name>
 ```
 
-```powershell
-# Windows PowerShell
-.\scripts\import-images.ps1 `
-    -SourceUser <provided-by-qwiser> `
-    -SourcePassword <provided-by-qwiser> `
-    -TargetAcr <your-acr-name>
-```
-
 See [IMAGE_IMPORT_GUIDE.md](docs/IMAGE_IMPORT_GUIDE.md) for details.
 
-### 2. Seed Configuration
+### 3. Seed Configuration
 
-Populate Azure App Configuration with required settings.
+Populate Azure App Configuration:
 
-```powershell
-.\scripts\seed-appconfig.ps1 -AppConfigName <your-appconfig-name>
+```bash
+./scripts/seed-appconfig.sh --app-config-name <your-appconfig-name>
 ```
 
 See [APPCONFIG_REFERENCE.md](docs/APPCONFIG_REFERENCE.md) for all configuration keys.
 
-### 3. Seed Key Vault Secrets
+### 4. Seed Key Vault Secrets
 
-Add secrets to Key Vault.
+Add secrets to Key Vault:
 
-```powershell
-.\scripts\seed-keyvault.ps1 -KeyVaultName <your-keyvault-name>
+```bash
+./scripts/seed-keyvault.sh --key-vault-name <your-keyvault-name>
 ```
 
-### 4. Deploy AI Models
+### 5. Deploy AI Models
 
 Create Azure OpenAI deployments for the required models.
 
-See [AI_MODELS_SETUP.md](docs/AI_MODELS_SETUP.md) for model requirements and deployment instructions.
+See [AI_MODELS_SETUP.md](docs/AI_MODELS_SETUP.md) for requirements.
 
-### 5. Download ML Models
+### 6. Download ML Models
 
 Download and mount ML models for the embeddings worker.
 
-See [ML_MODELS_SETUP.md](docs/ML_MODELS_SETUP.md) for the model list and download process.
+See [ML_MODELS_SETUP.md](docs/ML_MODELS_SETUP.md) for the model list.
 
-### 6. Apply Kubernetes Manifests
+### 7. Apply Kubernetes Manifests
 
-Deploy QWiser services to AKS.
+Deploy QWiser services to AKS:
 
 ```bash
+# Get AKS credentials
+az aks get-credentials --resource-group <your-rg> --name <your-aks-name>
+
+# Apply manifests
 cd k8s/base
 ./apply.sh
 ```
 
-See [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for the full deployment walkthrough.
+See [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for the full walkthrough.
 
-### 7. Configure LTI Integration
+### 8. Configure Custom Domain & SSL
+
+Azure Front Door handles SSL automatically with free managed certificates.
+
+**Step 8a: Get Front Door hostname**
+
+```bash
+# From deployment outputs, or:
+az afd endpoint show \
+  --resource-group <your-rg> \
+  --profile-name <your-fd-profile> \
+  --endpoint-name <your-endpoint> \
+  --query "hostName" -o tsv
+```
+
+**Step 8b: Create CNAME record**
+
+In your DNS provider, create:
+```
+qwiser.yourdomain.com  CNAME  <frontdoor-hostname>.azurefd.net
+```
+
+**Step 8c: Add custom domain to Front Door**
+
+```bash
+az afd custom-domain create \
+  --resource-group <your-rg> \
+  --profile-name <your-fd-profile> \
+  --custom-domain-name qwiser-custom-domain \
+  --host-name qwiser.yourdomain.com \
+  --certificate-type ManagedCertificate
+```
+
+**Step 8d: Associate domain with route**
+
+```bash
+az afd route update \
+  --resource-group <your-rg> \
+  --profile-name <your-fd-profile> \
+  --endpoint-name <your-endpoint> \
+  --route-name default-route \
+  --custom-domains qwiser-custom-domain
+```
+
+Certificate provisioning takes 5-15 minutes. Check status:
+```bash
+az afd custom-domain show \
+  --resource-group <your-rg> \
+  --profile-name <your-fd-profile> \
+  --custom-domain-name qwiser-custom-domain \
+  --query "{domain:hostName, certStatus:tlsSettings.certificateType, validationState:validationProperties.validationState}"
+```
+
+### 9. Configure LTI Integration
 
 Integrate QWiser with your LMS (Moodle, Canvas, Blackboard).
 
-See [LTI_INTEGRATION.md](docs/LTI_INTEGRATION.md) for step-by-step instructions.
+See [LTI_INTEGRATION.md](docs/LTI_INTEGRATION.md) for instructions.
 
-### 8. Verify Deployment
+### 10. Verify Deployment
 
-Run post-deployment checks.
+Run post-deployment checks:
+
+```bash
+./scripts/post-deploy.sh --resource-group <your-rg>
+```
 
 See [POST_DEPLOYMENT.md](docs/POST_DEPLOYMENT.md) for verification steps.
 
 ---
 
-## Current Version
-
-See [VERSIONS.txt](VERSIONS.txt) for the image tags in this release.
-
-**Current release**: See [CHANGELOG.md](CHANGELOG.md) for version history.
-
----
-
-## Documentation Index
+## Documentation
 
 | Document | Description |
 |----------|-------------|
@@ -149,7 +255,7 @@ See [VERSIONS.txt](VERSIONS.txt) for the image tags in this release.
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
                           ┌─────────────────┐
@@ -181,22 +287,29 @@ See [VERSIONS.txt](VERSIONS.txt) for the image tags in this release.
                                                   └─────────────────┘
 ```
 
-**External Dependencies:**
-- Azure Database for MySQL (managed)
-- Azure Cache for Redis (managed)
-- Azure OpenAI (managed)
-- Azure Storage (blobs)
+**Managed Services:**
+- Azure Database for MySQL
+- Azure Managed Redis
+- Azure OpenAI
+- Azure Blob Storage
+
+---
+
+## Versioning
+
+See [VERSIONS.txt](VERSIONS.txt) for current image tags.
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
 
 ## Support
 
-- **Documentation issues**: Open an issue in this repository
-- **Deployment support**: Contact your QWiser representative
 - **Email**: support@qwiser.io
+- **Issues**: Open an issue in this repository
 
 ---
 
 ## License
 
-This deployment package is provided under license to your institution. See your license agreement for terms.
+This deployment package is provided under license to your organization. See your license agreement for terms.
