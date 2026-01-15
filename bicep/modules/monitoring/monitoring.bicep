@@ -101,6 +101,29 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 }
 
 // ============================================================================
+// Container Insights Solution
+// ============================================================================
+// MUST be deployed before DCR - this creates the required tables:
+// ContainerLogV2, KubeEvents, KubePodInventory, KubeNodeInventory, etc.
+// Ref: https://learn.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-enable-aks
+// ============================================================================
+
+resource containerInsightsSolution 'Microsoft.OperationsManagement/solutions@2015-11-01-preview' = {
+  name: 'ContainerInsights(${workspaceName})'
+  location: location
+  tags: tags
+  plan: {
+    name: 'ContainerInsights(${workspaceName})'
+    publisher: 'Microsoft'
+    product: 'OMSGallery/ContainerInsights'
+    promotionCode: ''
+  }
+  properties: {
+    workspaceResourceId: logAnalyticsWorkspace.id
+  }
+}
+
+// ============================================================================
 // Application Insights
 // ============================================================================
 // Workspace-based Application Insights for application telemetry
@@ -154,6 +177,9 @@ resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2023-03-11' 
   location: location
   tags: tags
   kind: 'Linux'
+  dependsOn: [
+    containerInsightsSolution // Wait for solution to create required tables
+  ]
   properties: {
     description: 'Data collection rule for Container Insights'
     dataCollectionEndpointId: dataCollectionEndpoint.id

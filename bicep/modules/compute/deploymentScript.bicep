@@ -179,6 +179,12 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       echo "Installing NGINX Ingress Controller on AKS cluster..."
       echo "Cluster: $AKS_CLUSTER_NAME in $AKS_RESOURCE_GROUP"
 
+      # Explicitly login with managed identity
+      echo "Authenticating with managed identity..."
+      az login --identity --allow-no-subscriptions
+      az account show --query "{subscriptionId:id, user:user.name}" -o table
+      echo "Authentication successful."
+
       # Wait for RBAC role assignment to propagate (can take up to 5 minutes)
       # Azure RBAC propagation is eventually consistent - we must wait for it
       echo "Waiting for RBAC permissions to propagate..."
