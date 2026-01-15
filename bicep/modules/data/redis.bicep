@@ -77,8 +77,7 @@ param zones array = []
 param evictionPolicy string = 'VolatileLRU'
 param clusteringPolicy string = 'EnterpriseCluster'
 
-@description('Workload Identity principal ID for data-plane access')
-param workloadIdentityPrincipalId string
+// Note: workloadIdentityPrincipalId removed - Redis Enterprise uses Access Policies, not RBAC
 
 // ============================================================================
 // Variables
@@ -87,10 +86,6 @@ param workloadIdentityPrincipalId string
 // Redis Enterprise names: 1-60 chars, alphanumeric and hyphens
 var redisName = '${namingPrefix}-redis'
 var privateEndpointName = '${namingPrefix}-redis-pe'
-
-// Built-in role: Redis Cache Data Contributor
-// Ref: https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/databases#redis-cache-data-contributor
-var redisCacheDataContributorRoleId = 'e0b5f6ed-0a0c-48d4-a5c1-db94bb34d5ed'
 
 // ============================================================================
 // Azure Managed Redis (Redis Enterprise)
@@ -201,21 +196,24 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
 }
 
 // ============================================================================
-// Data-Plane Role Assignment for Workload Identity
+// Data-Plane Access for Workload Identity
 // ============================================================================
-// Pods using Workload Identity need Redis Cache Data Contributor role
-// to authenticate via Entra ID (access keys are disabled)
+// NOTE: Azure Managed Redis (Enterprise) uses Access Policies for data-plane
+// auth, NOT Azure RBAC roles. The "Redis Cache Data Contributor" role only
+// exists for Azure Cache for Redis (non-Enterprise).
+//
+// For Entra ID authentication with Redis Enterprise:
+// - Configure Access Policies post-deployment via Azure Portal or CLI
+// - Or re-enable access keys (accessKeyAuthentication: Enabled)
+//
+// Access Policy setup (post-deployment):
+//   az redis access-policy-assignment create \
+//     --name <policy-name> \
+//     --policy-name "Data Owner" \
+//     --object-id <workload-identity-object-id> \
+//     --resource-group <rg> \
+//     --cache-name <redis-name>
 // ============================================================================
-
-resource dataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(redisEnterprise.id, workloadIdentityPrincipalId, redisCacheDataContributorRoleId)
-  scope: redisEnterprise
-  properties: {
-    principalId: workloadIdentityPrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', redisCacheDataContributorRoleId)
-    principalType: 'ServicePrincipal'
-  }
-}
 
 // ============================================================================
 // Outputs

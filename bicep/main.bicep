@@ -340,7 +340,6 @@ module redis 'modules/data/redis.bicep' = {
     skuName: redisSkuName
     highAvailability: redisHighAvailability
     zones: redisZones
-    workloadIdentityPrincipalId: managedIdentity.outputs.principalId
   }
 }
 

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "13155651178689402243"
+      "templateHash": "4114146315558082446"
     }
   },
   "parameters": {
@@ -2383,9 +2383,6 @@
           },
           "zones": {
             "value": "[parameters('redisZones')]"
-          },
-          "workloadIdentityPrincipalId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-managed-identity'), '2025-04-01').outputs.principalId.value]"
           }
         },
         "template": {
@@ -2395,7 +2392,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "12324329491329829878"
+              "templateHash": "16801194097542289632"
             }
           },
           "parameters": {
@@ -2484,18 +2481,11 @@
             "clusteringPolicy": {
               "type": "string",
               "defaultValue": "EnterpriseCluster"
-            },
-            "workloadIdentityPrincipalId": {
-              "type": "string",
-              "metadata": {
-                "description": "Workload Identity principal ID for data-plane access"
-              }
             }
           },
           "variables": {
             "redisName": "[format('{0}-redis', parameters('namingPrefix'))]",
-            "privateEndpointName": "[format('{0}-redis-pe', parameters('namingPrefix'))]",
-            "redisCacheDataContributorRoleId": "e0b5f6ed-0a0c-48d4-a5c1-db94bb34d5ed"
+            "privateEndpointName": "[format('{0}-redis-pe', parameters('namingPrefix'))]"
           },
           "resources": [
             {
@@ -2576,20 +2566,6 @@
               "dependsOn": [
                 "[resourceId('Microsoft.Network/privateEndpoints', variables('privateEndpointName'))]"
               ]
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Cache/redisEnterprise/{0}', variables('redisName'))]",
-              "name": "[guid(resourceId('Microsoft.Cache/redisEnterprise', variables('redisName')), parameters('workloadIdentityPrincipalId'), variables('redisCacheDataContributorRoleId'))]",
-              "properties": {
-                "principalId": "[parameters('workloadIdentityPrincipalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('redisCacheDataContributorRoleId'))]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Cache/redisEnterprise', variables('redisName'))]"
-              ]
             }
           ],
           "outputs": {
@@ -2632,7 +2608,6 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-managed-identity')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-private-dns-zones')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-vnet')]"

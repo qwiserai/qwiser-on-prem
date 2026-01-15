@@ -2,7 +2,7 @@
 
 Deploy QWiser to your own Azure infrastructure.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.6%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.6%2Fbicep%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.7%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.7%2Fbicep%2FcreateUiDefinition.json)
 
 ---
 
