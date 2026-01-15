@@ -1,14 +1,7 @@
 # QWiser University - Post-Deployment Guide
 
-> **Last Updated**: 2026-01-15
-> **Version**: 1.0.0
-> **Audience**: University IT Infrastructure Teams
-
----
-
-## Overview
-
 This guide covers post-deployment configuration tasks after the main infrastructure and application deployment is complete.
+
 ---
 
 ## LTI 1.3 Integration (Moodle/Canvas)
@@ -34,13 +27,16 @@ cat lti-private-key.pem
 
 ### Step 2: Store Private Key in Key Vault
 
+The private key must be stored as base64-encoded:
+
 ```bash
 KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
 
-az keyvault secret set \
+# Base64 encode the private key and store in Key Vault
+base64 -w 0 lti-private-key.pem | az keyvault secret set \
     --vault-name "$KEYVAULT_NAME" \
     --name "LTI-PRIVATE-KEY" \
-    --file lti-private-key.pem
+    --value @-
 ```
 
 ### Step 3: Register QWiser in LMS
@@ -91,7 +87,7 @@ az keyvault secret set \
 ```bash
 APPCONFIG_NAME=$(jq -r '.appConfigName.value' deployment-outputs.json)
 
-# Moodle example values
+# Platform configuration (Moodle example values)
 az appconfig kv set -n "$APPCONFIG_NAME" --key "lti:platform:issuer" --value "https://moodle.myuniversity.edu" --label production --yes
 az appconfig kv set -n "$APPCONFIG_NAME" --key "lti:platform:client_id" --value "YOUR_CLIENT_ID" --label production --yes
 az appconfig kv set -n "$APPCONFIG_NAME" --key "lti:platform:deployment_id" --value "YOUR_DEPLOYMENT_ID" --label production --yes

@@ -180,19 +180,36 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       echo "Cluster: $AKS_CLUSTER_NAME in $AKS_RESOURCE_GROUP"
 
       # Wait for RBAC role assignment to propagate (can take up to 5 minutes)
+      # Azure RBAC propagation is eventually consistent - we must wait for it
       echo "Waiting for RBAC permissions to propagate..."
+      echo "Initial wait of 60 seconds for RBAC propagation..."
+      sleep 60
+
+      RBAC_READY=false
       for i in {1..30}; do
+        echo "Testing RBAC permissions (attempt $i/30)..."
+
+        # Test the actual permission we need: command invoke + reading results
         if az aks command invoke \
           --resource-group "$AKS_RESOURCE_GROUP" \
           --name "$AKS_CLUSTER_NAME" \
-          --command "kubectl version --client" \
-          --query "logs" -o tsv 2>/dev/null; then
-          echo "RBAC permissions active."
+          --command "echo RBAC_TEST_OK" \
+          --query "logs" -o tsv 2>&1 | grep -q "RBAC_TEST_OK"; then
+          echo "RBAC permissions verified successfully."
+          RBAC_READY=true
           break
         fi
-        echo "Waiting for RBAC propagation (attempt $i/30)..."
+
+        echo "RBAC not ready yet, waiting 10 seconds..."
         sleep 10
       done
+
+      if [ "$RBAC_READY" != "true" ]; then
+        echo "ERROR: RBAC permissions did not propagate within 6 minutes"
+        echo "The AKS Cluster Admin role assignment may not have propagated yet."
+        echo "Please retry the deployment."
+        exit 1
+      fi
 
       # Create the Helm install command with values for internal LoadBalancer
       HELM_COMMAND="helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \

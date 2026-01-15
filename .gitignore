@@ -1,2 +1,5 @@
 # Test logs (internal use only)
 /testing/
+
+# Debug templates (internal use only)
+/bicep/debug/
