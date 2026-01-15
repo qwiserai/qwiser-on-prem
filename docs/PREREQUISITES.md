@@ -45,6 +45,7 @@ az provider show --namespace Microsoft.ContainerService --query "registrationSta
 | kubectl | 1.28+ | `az aks install-cli` |
 | Helm | 3.14+ | [Install Helm](https://helm.sh/docs/intro/install/) |
 | Git | 2.40+ | [Install Git](https://git-scm.com/downloads) |
+| jq | 1.6+ | [Install jq](https://jqlang.github.io/jq/download/) |
 
 **Verify installations:**
 ```bash
@@ -52,6 +53,7 @@ az version
 kubectl version --client
 helm version
 git --version
+jq --version
 ```
 
 ---

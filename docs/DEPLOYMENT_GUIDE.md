@@ -1,7 +1,7 @@
 # QWiser University - Deployment Guide
 
-> **Last Updated**: 2026-01-14
-> **Version**: 1.0.0
+> **Last Updated**: 2026-01-15
+> **Version**: 1.1.0
 > **Audience**: University IT Infrastructure Teams
 
 ---
@@ -19,6 +19,7 @@
 9. [Phase 7: DNS & Front Door Configuration](#phase-7-dns--front-door-configuration)
 10. [Phase 8: Verification](#phase-8-verification)
 11. [Troubleshooting](#troubleshooting)
+12. [Cleanup](#cleanup)
 
 ---
 
@@ -28,7 +29,7 @@ See [PREREQUISITES.md](./PREREQUISITES.md) for details.
 
 - [ ] QWiser ACR pull credentials
 - [ ] Azure subscription with Owner or Contributor + UAA
-- [ ] Azure CLI, kubectl, Helm, Git installed
+- [ ] Azure CLI, kubectl, Helm, Git, jq installed
 
 ---
 
@@ -65,18 +66,34 @@ AKS Cluster (Private)
 
 Use the **Deploy to Azure** button in the [README](../README.md). It provides guided configuration with built-in validation.
 
-If you prefer CLI, see `bicep/main.bicep` and `bicep/main.bicepparam`. If you know what you're doing.
+If you prefer CLI, see `bicep/main.bicep` and `bicep/main.bicepparam` if you know what you're doing.
 
 ### Capture Outputs
 
-After deployment completes, save the outputs for later phases:
+After deployment completes, capture the outputs for use in all subsequent phases.
 
+**Find your deployment name:**
 ```bash
+# List recent deployments (look for the one with your resource group name)
+az deployment sub list --query "[?contains(name, 'main') || contains(name, 'qwiser')].{name:name, timestamp:properties.timestamp}" -o table
+```
+
+**Save outputs to file:**
+```bash
+# Replace <deployment-name> with your actual deployment name from above
 az deployment sub show \
-    --name <your-deployment-name> \
+    --name <deployment-name> \
     --query "properties.outputs" \
     -o json > deployment-outputs.json
 ```
+
+**Verify the file was created:**
+```bash
+# Should show all output values
+jq 'keys' deployment-outputs.json
+```
+
+> **Important**: Keep `deployment-outputs.json` in your working directory. All subsequent commands reference this file.
 
 ---
 
@@ -91,14 +108,15 @@ The post-deployment script seeds Key Vault secrets and App Configuration values.
 ```bash
 cd infrastructure/bicep/scripts
 
-# Get values from deployment outputs
-RESOURCE_GROUP="qwiser-prod-rg"
-KEYVAULT_NAME=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.keyVaultName.value" -o tsv)
-APPCONFIG_NAME=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.appConfigName.value" -o tsv)
-PLS_NAME=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.privateLinkServiceName.value" -o tsv)
-MYSQL_HOST=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.mysqlServerFqdn.value" -o tsv)
-REDIS_HOST=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.redisHostName.value" -o tsv)
-STORAGE_QUEUE_URL="https://$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.storageAccountName.value" -o tsv).queue.core.windows.net"
+# Load values from deployment outputs
+RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
+KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
+APPCONFIG_NAME=$(jq -r '.appConfigName.value' deployment-outputs.json)
+PLS_NAME=$(jq -r '.privateLinkServiceName.value' deployment-outputs.json)
+MYSQL_HOST=$(jq -r '.mysqlServerFqdn.value' deployment-outputs.json)
+REDIS_HOST=$(jq -r '.redisHostName.value' deployment-outputs.json)
+STORAGE_ACCOUNT=$(jq -r '.storageAccountName.value' deployment-outputs.json)
+STORAGE_QUEUE_URL="https://${STORAGE_ACCOUNT}.queue.core.windows.net"
 
 # Run post-deployment script
 ./post-deploy.sh \
@@ -141,6 +159,8 @@ Deploy AI models in Azure AI Foundry. See [AI_MODELS_SETUP.md](./AI_MODELS_SETUP
 After deploying AI models, update the endpoint values:
 
 ```bash
+APPCONFIG_NAME=$(jq -r '.appConfigName.value' deployment-outputs.json)
+
 # Example for gpt-4.1-mini
 az appconfig kv set \
     -n "$APPCONFIG_NAME" \
@@ -167,6 +187,8 @@ az appconfig kv set \
 ### Update API Key in Key Vault
 
 ```bash
+KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
+
 az keyvault secret set \
     --vault-name "$KEYVAULT_NAME" \
     --name "AI-FOUNDRY-API-KEY" \
@@ -189,7 +211,7 @@ Download HuggingFace models and mount to Azure Files. See [ML_MODELS_SETUP.md](.
 ### Upload to Azure Files
 
 ```bash
-STORAGE_ACCOUNT=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.storageAccountName.value" -o tsv)
+STORAGE_ACCOUNT=$(jq -r '.storageAccountName.value' deployment-outputs.json)
 
 # Upload models to Azure Files share
 az storage file upload-batch \
@@ -208,7 +230,7 @@ Import QWiser container images into your ACR. See [IMAGE_IMPORT_GUIDE.md](./IMAG
 ### Required Images
 
 ```bash
-ACR_NAME=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.acrLoginServer.value" -o tsv | cut -d'.' -f1)
+ACR_NAME=$(jq -r '.acrLoginServer.value' deployment-outputs.json | cut -d'.' -f1)
 
 # Import images from source registry
 az acr import --name $ACR_NAME --source qwiser.azurecr.io/qwiser/public-api:v0.1.0 --image qwiser/public-api:v0.1.0
@@ -228,8 +250,8 @@ az acr repository list --name $ACR_NAME -o table
 ### 6.1 Get AKS Credentials
 
 ```bash
-AKS_NAME=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.aksClusterName.value" -o tsv)
-RESOURCE_GROUP="qwiser-prod-rg"
+AKS_NAME=$(jq -r '.aksClusterName.value' deployment-outputs.json)
+RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
 
 az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME"
 ```
@@ -254,6 +276,8 @@ kubectl get pods -n keda
 ### 6.3 Install Qdrant
 
 ```bash
+KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
+
 # Create Qdrant API key secret first
 QDRANT_API_KEY=$(az keyvault secret show --vault-name "$KEYVAULT_NAME" --name "QDRANT-API-KEY" --query "value" -o tsv)
 kubectl create secret generic qdrant-apikey --from-literal=api-key="$QDRANT_API_KEY"
@@ -265,7 +289,7 @@ helm repo update
 helm install qdrant qdrant/qdrant \
     --namespace qdrant \
     --create-namespace \
-    -f k8s-university/k8s/base/qdrant-values.yaml
+    -f k8s/base/qdrant-values.yaml
 ```
 
 **Verification**:
@@ -277,7 +301,7 @@ kubectl get pvc -n qdrant
 ### 6.4 Apply QWiser Manifests
 
 ```bash
-cd k8s-university/k8s/base
+cd k8s/base
 ./apply.sh
 ```
 
@@ -296,20 +320,20 @@ kubectl get ingress
 
 Get the Front Door hostname:
 ```bash
-FRONTDOOR_HOSTNAME=$(az deployment sub show --name qwiser-university-YYYYMMDD-HHMMSS --query "properties.outputs.frontDoorHostname.value" -o tsv)
+FRONTDOOR_HOSTNAME=$(jq -r '.frontDoorHostname.value' deployment-outputs.json)
 echo "Create CNAME record: qwiser.myuniversity.edu -> $FRONTDOOR_HOSTNAME"
 ```
 
 Create the CNAME record in your DNS provider:
 ```
-qwiser.myuniversity.edu CNAME qwiser-prod-fd-XXXXX.z01.azurefd.net
+qwiser.myuniversity.edu CNAME <frontdoor-hostname>.azurefd.net
 ```
 
 ### 7.2 Add Custom Domain to Front Door
 
 ```bash
-RESOURCE_GROUP="qwiser-prod-rg"
-FRONTDOOR_NAME="qwiser-prod-fd"
+RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
+FRONTDOOR_NAME=$(jq -r '.frontDoorName.value' deployment-outputs.json)
 
 az afd custom-domain create \
     --resource-group "$RESOURCE_GROUP" \
@@ -435,6 +459,18 @@ If issues persist:
 1. Collect diagnostic logs: `kubectl logs --all-containers -l app.kubernetes.io/part-of=qwiser-university`
 2. Check Azure resource health in Portal
 3. Contact QWiser support with deployment outputs and logs
+
+---
+
+## Cleanup
+
+After completing all phases, delete the deployment outputs file:
+
+```bash
+rm deployment-outputs.json
+```
+
+> **Security**: This file contains infrastructure details. Delete it after deployment is complete. You can always regenerate it from Azure if needed.
 
 ---
 

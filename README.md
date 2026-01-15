@@ -2,7 +2,7 @@
 
 Deploy QWiser to your own Azure infrastructure.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.8%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.8%2Fbicep%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.9%2Fbicep%2Fmain.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fqwiserai%2Fqwiser-on-prem%2Fv0.0.9%2Fbicep%2FcreateUiDefinition.json)
 
 ---
 
@@ -29,7 +29,7 @@ Then continue to [Post-Deployment Steps](#post-deployment-steps).
 
 ### Option B: Deploy via CLI
 
-If you prefer CLI over the portal, see `bicep/main.bicep` and `bicep/main.bicepparam`. You know what to do.
+If you prefer CLI over the portal, see `bicep/main.bicep` and `bicep/main.bicepparam` If you know what you are doing.
 
 ---
 
