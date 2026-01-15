@@ -197,11 +197,15 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
         echo "Testing RBAC permissions (attempt $i/30)..."
 
         # Test the actual permission we need: command invoke + reading results
-        if az aks command invoke \
+        RBAC_OUTPUT=$(az aks command invoke \
           --resource-group "$AKS_RESOURCE_GROUP" \
           --name "$AKS_CLUSTER_NAME" \
           --command "echo RBAC_TEST_OK" \
-          --query "logs" -o tsv 2>&1 | grep -q "RBAC_TEST_OK"; then
+          --query "logs" -o tsv 2>&1) || true
+
+        echo "RBAC test output: [$RBAC_OUTPUT]"
+
+        if echo "$RBAC_OUTPUT" | grep -q "RBAC_TEST_OK"; then
           echo "RBAC permissions verified successfully."
           RBAC_READY=true
           break
