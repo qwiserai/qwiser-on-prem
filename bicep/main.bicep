@@ -183,7 +183,7 @@ param customDomain string
 // keep purge protection enabled to prevent accidental/malicious deletion.
 // ============================================================================
 
-@description('Enable purge protection on App Configuration and Key Vault. Disable for test/dev to allow easy cleanup.')
+@description('Enable purge protection on App Configuration. Disable for test/dev to allow easy cleanup.')
 param enablePurgeProtection bool = true
 
 // ============================================================================
@@ -269,7 +269,6 @@ module keyVault 'modules/security/keyvault.bicep' = {
     peSubnetId: vnet.outputs.peSubnetId
     privateDnsZoneId: privateDnsZones.outputs.keyVaultDnsZoneId
     workloadIdentityPrincipalId: managedIdentity.outputs.principalId
-    enablePurgeProtection: enablePurgeProtection
   }
 }
 

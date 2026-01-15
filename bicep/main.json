@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "7346429873685450657"
+      "templateHash": "11708888343159712737"
     }
   },
   "parameters": {
@@ -273,7 +273,7 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Enable purge protection on App Configuration and Key Vault. Disable for test/dev to allow easy cleanup."
+        "description": "Enable purge protection on App Configuration. Disable for test/dev to allow easy cleanup."
       }
     }
   },
@@ -1060,9 +1060,6 @@
           },
           "workloadIdentityPrincipalId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-managed-identity'), '2025-04-01').outputs.principalId.value]"
-          },
-          "enablePurgeProtection": {
-            "value": "[parameters('enablePurgeProtection')]"
           }
         },
         "template": {
@@ -1072,7 +1069,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "15231056725559130170"
+              "templateHash": "7330312960371217765"
             }
           },
           "parameters": {
@@ -1126,13 +1123,6 @@
               "metadata": {
                 "description": "Soft delete retention in days (7-90)"
               }
-            },
-            "enablePurgeProtection": {
-              "type": "bool",
-              "defaultValue": true,
-              "metadata": {
-                "description": "Enable purge protection. Disable for test/dev to allow easy cleanup."
-              }
             }
           },
           "variables": {
@@ -1157,7 +1147,7 @@
                 "publicNetworkAccess": "Disabled",
                 "enableSoftDelete": true,
                 "softDeleteRetentionInDays": "[parameters('softDeleteRetentionInDays')]",
-                "enablePurgeProtection": "[parameters('enablePurgeProtection')]",
+                "enablePurgeProtection": true,
                 "networkAcls": {
                   "defaultAction": "Deny",
                   "bypass": "AzureServices",
