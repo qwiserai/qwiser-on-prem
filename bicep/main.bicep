@@ -21,7 +21,7 @@ param environmentName string
 @maxLength(10)
 param namePrefix string = 'qwiser'
 
-@description('Tags to apply to all resources')
+@description('Tags to apply to all resources. Example: { Environment: "prod", CostCenter: "IT-12345", Owner: "admin@university.edu" }')
 param tags object = {}
 
 // ============================================================================
