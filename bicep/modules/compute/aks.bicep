@@ -85,8 +85,8 @@ param systemNodeMaxCount int = 10
 @description('Enable cluster autoscaler for system node pool')
 param enableAutoScaling bool = true
 
-@description('System node pool availability zones')
-param availabilityZones array = ['1', '2', '3']
+@description('System node pool availability zones. Empty array = no zone pinning (works in all regions).')
+param availabilityZones array = []
 
 // --- Network Configuration ---
 

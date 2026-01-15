@@ -184,6 +184,9 @@ var resourceGroupName = '${namePrefix}-${environmentName}-rg'
 var namingPrefix = '${namePrefix}-${environmentName}'
 var aksClusterName = '${namingPrefix}-aks'
 
+// Unique suffix for globally unique Key Vault names
+var uniqueSuffix = substring(uniqueString(subscription().subscriptionId, resourceGroupName), 0, 6)
+
 // Pre-compute node resource group name (deterministic: MC_<rg>_<cluster>_<location>)
 // This allows cross-RG role assignments without waiting for AKS outputs
 var nodeResourceGroupName = 'MC_${resourceGroupName}_${aksClusterName}_${location}'
@@ -248,6 +251,7 @@ module keyVault 'modules/security/keyvault.bicep' = {
   params: {
     location: location
     namingPrefix: namingPrefix
+    uniqueSuffix: uniqueSuffix
     tags: tags
     peSubnetId: vnet.outputs.peSubnetId
     privateDnsZoneId: privateDnsZones.outputs.keyVaultDnsZoneId

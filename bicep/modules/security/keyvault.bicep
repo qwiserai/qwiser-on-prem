@@ -28,6 +28,9 @@ param location string
 @description('Naming prefix for resources')
 param namingPrefix string
 
+@description('Unique suffix for globally unique Key Vault name')
+param uniqueSuffix string
+
 @description('Tags to apply to resources')
 param tags object
 
@@ -50,7 +53,7 @@ param softDeleteRetentionInDays int = 90
 // ============================================================================
 
 // Key Vault names must be globally unique, 3-24 chars, alphanumeric + hyphens
-var keyVaultName = '${namingPrefix}-kv'
+var keyVaultName = '${namingPrefix}-kv-${uniqueSuffix}'
 var privateEndpointName = '${namingPrefix}-kv-pe'
 
 // Built-in role definition IDs
