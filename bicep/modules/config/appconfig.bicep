@@ -43,6 +43,9 @@ param privateDnsZoneId string
 @description('Workload identity principal ID (for Data Reader role)')
 param workloadIdentityPrincipalId string
 
+@description('Enable purge protection. Disable for test/dev to allow easy cleanup.')
+param enablePurgeProtection bool = true
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -76,8 +79,8 @@ resource appConfig 'Microsoft.AppConfiguration/configurationStores@2024-05-01' =
     // All access must use Managed Identity or Azure AD authentication
     disableLocalAuth: true
 
-    // Enable purge protection (prevents permanent deletion)
-    enablePurgeProtection: true
+    // Purge protection (prevents permanent deletion) - disable for test/dev
+    enablePurgeProtection: enablePurgeProtection
 
     // Soft delete retention (default 7 days for Standard SKU)
     softDeleteRetentionInDays: 7

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "10373715103533400379"
+      "templateHash": "7346429873685450657"
     }
   },
   "parameters": {
@@ -154,6 +154,13 @@
         "description": "Redis availability zones for zone redundancy"
       }
     },
+    "enableRedisPublicAccess": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable public network access on Redis. Use ONLY for external embeddings-worker testing when GPU quota unavailable in this subscription. Security maintained via Entra ID auth."
+      }
+    },
     "kubernetesVersion": {
       "type": "string",
       "defaultValue": "",
@@ -260,6 +267,13 @@
       "type": "string",
       "metadata": {
         "description": "Custom domain that university will point to Front Door (e.g., qwiser.university.edu). Used for ConfigMap URL env vars."
+      }
+    },
+    "enablePurgeProtection": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable purge protection on App Configuration and Key Vault. Disable for test/dev to allow easy cleanup."
       }
     }
   },
@@ -1046,6 +1060,9 @@
           },
           "workloadIdentityPrincipalId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-managed-identity'), '2025-04-01').outputs.principalId.value]"
+          },
+          "enablePurgeProtection": {
+            "value": "[parameters('enablePurgeProtection')]"
           }
         },
         "template": {
@@ -1055,7 +1072,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "7330312960371217765"
+              "templateHash": "15231056725559130170"
             }
           },
           "parameters": {
@@ -1109,6 +1126,13 @@
               "metadata": {
                 "description": "Soft delete retention in days (7-90)"
               }
+            },
+            "enablePurgeProtection": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable purge protection. Disable for test/dev to allow easy cleanup."
+              }
             }
           },
           "variables": {
@@ -1133,7 +1157,7 @@
                 "publicNetworkAccess": "Disabled",
                 "enableSoftDelete": true,
                 "softDeleteRetentionInDays": "[parameters('softDeleteRetentionInDays')]",
-                "enablePurgeProtection": true,
+                "enablePurgeProtection": "[parameters('enablePurgeProtection')]",
                 "networkAcls": {
                   "defaultAction": "Deny",
                   "bypass": "AzureServices",
@@ -1269,6 +1293,9 @@
           },
           "workloadIdentityPrincipalId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-managed-identity'), '2025-04-01').outputs.principalId.value]"
+          },
+          "enablePurgeProtection": {
+            "value": "[parameters('enablePurgeProtection')]"
           }
         },
         "template": {
@@ -1278,7 +1305,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "14433091010222730169"
+              "templateHash": "9362304421913489430"
             }
           },
           "parameters": {
@@ -1317,6 +1344,13 @@
               "metadata": {
                 "description": "Workload identity principal ID (for Data Reader role)"
               }
+            },
+            "enablePurgeProtection": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable purge protection. Disable for test/dev to allow easy cleanup."
+              }
             }
           },
           "variables": {
@@ -1337,7 +1371,7 @@
               "properties": {
                 "publicNetworkAccess": "Disabled",
                 "disableLocalAuth": true,
-                "enablePurgeProtection": true,
+                "enablePurgeProtection": "[parameters('enablePurgeProtection')]",
                 "softDeleteRetentionInDays": 7
               }
             },
@@ -2383,6 +2417,9 @@
           },
           "zones": {
             "value": "[parameters('redisZones')]"
+          },
+          "enablePublicAccess": {
+            "value": "[parameters('enableRedisPublicAccess')]"
           }
         },
         "template": {
@@ -2392,7 +2429,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "16801194097542289632"
+              "templateHash": "17532902076097067692"
             }
           },
           "parameters": {
@@ -2481,6 +2518,13 @@
             "clusteringPolicy": {
               "type": "string",
               "defaultValue": "EnterpriseCluster"
+            },
+            "enablePublicAccess": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable public network access. Set to true for external embeddings-worker access during testing. Security is maintained via Entra ID auth."
+              }
             }
           },
           "variables": {
@@ -2500,7 +2544,7 @@
               "zones": "[if(not(empty(parameters('zones'))), parameters('zones'), null())]",
               "properties": {
                 "minimumTlsVersion": "1.2",
-                "publicNetworkAccess": "Disabled",
+                "publicNetworkAccess": "[if(parameters('enablePublicAccess'), 'Enabled', 'Disabled')]",
                 "highAvailability": "[parameters('highAvailability')]"
               }
             },

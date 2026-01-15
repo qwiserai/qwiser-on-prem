@@ -177,6 +177,16 @@ param workloadNamespace string = 'default'
 param customDomain string
 
 // ============================================================================
+// Test/Dev Settings
+// ============================================================================
+// These settings make cleanup easier for test deployments. For production,
+// keep purge protection enabled to prevent accidental/malicious deletion.
+// ============================================================================
+
+@description('Enable purge protection on App Configuration and Key Vault. Disable for test/dev to allow easy cleanup.')
+param enablePurgeProtection bool = true
+
+// ============================================================================
 // Variables
 // ============================================================================
 
@@ -259,6 +269,7 @@ module keyVault 'modules/security/keyvault.bicep' = {
     peSubnetId: vnet.outputs.peSubnetId
     privateDnsZoneId: privateDnsZones.outputs.keyVaultDnsZoneId
     workloadIdentityPrincipalId: managedIdentity.outputs.principalId
+    enablePurgeProtection: enablePurgeProtection
   }
 }
 
@@ -273,6 +284,7 @@ module appConfig 'modules/config/appconfig.bicep' = {
     peSubnetId: vnet.outputs.peSubnetId
     privateDnsZoneId: privateDnsZones.outputs.appConfigDnsZoneId
     workloadIdentityPrincipalId: managedIdentity.outputs.principalId
+    enablePurgeProtection: enablePurgeProtection
   }
 }
 

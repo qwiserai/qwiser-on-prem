@@ -15,11 +15,13 @@ You need pull credentials for the QWiser container registry. Contact jonathan@qw
 
 ### Required Resource Providers
 
-Register these providers in your subscription:
+Register these providers **before** starting deployment. Some providers (especially `Microsoft.ContainerInstance`) can take several minutes to register and will cause deployment timeouts if not pre-registered.
 
 ```bash
+# Register all required providers
 az provider register --namespace Microsoft.ContainerService
 az provider register --namespace Microsoft.ContainerRegistry
+az provider register --namespace Microsoft.ContainerInstance  # Required for deployment scripts
 az provider register --namespace Microsoft.KeyVault
 az provider register --namespace Microsoft.AppConfiguration
 az provider register --namespace Microsoft.DBforMySQL
@@ -30,10 +32,25 @@ az provider register --namespace Microsoft.Cdn
 az provider register --namespace Microsoft.OperationalInsights
 az provider register --namespace Microsoft.Insights
 az provider register --namespace Microsoft.Security
-
-# Verify registration
-az provider show --namespace Microsoft.ContainerService --query "registrationState"
+az provider register --namespace Microsoft.ManagedIdentity
 ```
+
+**Verify all providers are registered** (run this before deploying):
+
+```bash
+# Check all required providers at once
+for ns in Microsoft.ContainerService Microsoft.ContainerRegistry Microsoft.ContainerInstance \
+           Microsoft.KeyVault Microsoft.AppConfiguration Microsoft.DBforMySQL Microsoft.Cache \
+           Microsoft.Storage Microsoft.Network Microsoft.Cdn Microsoft.OperationalInsights \
+           Microsoft.Insights Microsoft.Security Microsoft.ManagedIdentity; do
+    state=$(az provider show --namespace $ns --query "registrationState" -o tsv 2>/dev/null)
+    printf "%-40s %s\n" "$ns" "$state"
+done
+```
+
+All providers should show `Registered`. If any show `NotRegistered` or `Registering`, wait and re-check before proceeding.
+
+> **Note**: `Microsoft.ContainerInstance` is critical - deployment scripts run in ACI containers. If not registered, the deployment will timeout after 20 minutes.
 
 ---
 

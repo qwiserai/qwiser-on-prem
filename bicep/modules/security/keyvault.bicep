@@ -48,6 +48,9 @@ param workloadIdentityPrincipalId string
 @maxValue(90)
 param softDeleteRetentionInDays int = 90
 
+@description('Enable purge protection. Disable for test/dev to allow easy cleanup.')
+param enablePurgeProtection bool = true
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -87,8 +90,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: softDeleteRetentionInDays
 
-    // Security: Enable purge protection (prevents malicious permanent deletion)
-    enablePurgeProtection: true
+    // Purge protection (prevents permanent deletion) - disable for test/dev
+    enablePurgeProtection: enablePurgeProtection
 
     // Network configuration (deny all public access)
     networkAcls: {

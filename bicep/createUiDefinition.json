@@ -577,6 +577,20 @@
                 }
               }
             ]
+          },
+          {
+            "name": "devSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Test/Dev Settings",
+            "elements": [
+              {
+                "name": "enablePurgeProtection",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable purge protection (recommended for production)",
+                "defaultValue": true,
+                "toolTip": "Prevents permanent deletion of App Configuration and Key Vault. Uncheck for test/dev deployments to allow easy cleanup. Resources with purge protection cannot be fully deleted until retention period expires (7-90 days)."
+              }
+            ]
           }
         ]
       },
@@ -733,6 +747,7 @@
       "enableWaf": "[steps('security').wafSection.enableWaf]",
       "wafMode": "[steps('security').wafSection.wafMode]",
       "workloadNamespace": "[steps('security').workloadSection.workloadNamespace]",
+      "enablePurgeProtection": "[steps('security').devSection.enablePurgeProtection]",
       "vnetAddressPrefix": "[steps('networking').vnetSection.vnetAddressPrefix]",
       "peSubnetPrefix": "[steps('networking').vnetSection.peSubnetPrefix]",
       "aksNodesSubnetPrefix": "[steps('networking').vnetSection.aksNodesSubnetPrefix]",
