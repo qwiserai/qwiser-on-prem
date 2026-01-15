@@ -299,6 +299,13 @@
                 "constraints": {
                   "required": false
                 }
+              },
+              {
+                "name": "enableRedisPublicAccess",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable public network access (for external embeddings-worker)",
+                "toolTip": "Enable this ONLY if running embeddings-worker externally (e.g., in another subscription with GPU quota). Security is maintained via Entra ID authentication. Disable after testing.",
+                "defaultValue": false
               }
             ]
           }
@@ -448,10 +455,18 @@
             "label": "GPU Node Pool",
             "elements": [
               {
+                "name": "deployGpuNodePool",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Deploy GPU node pool for embeddings-worker",
+                "toolTip": "Uncheck if GPU quota is unavailable. You can run embeddings-worker externally (e.g., in another subscription with GPU quota) by enabling Redis public access in the Database step.",
+                "defaultValue": true
+              },
+              {
                 "name": "gpuNodeVmSize",
                 "type": "Microsoft.Common.DropDown",
                 "label": "GPU VM Size",
                 "defaultValue": "Standard_NC4as_T4_v3",
+                "visible": "[steps('compute').gpuSection.deployGpuNodePool]",
                 "toolTip": "VM size for GPU nodes. Required for embeddings worker. Choose based on quota availability and performance needs.",
                 "constraints": {
                   "required": true,
@@ -479,6 +494,11 @@
                     { "label": "Standard_NV36ads_A10_v5 (36 vCPU, 440GB, 1x A10 24GB)", "value": "Standard_NV36ads_A10_v5" },
                     { "label": "Standard_NV36adms_A10_v5 (36 vCPU, 880GB, 1x A10 24GB)", "value": "Standard_NV36adms_A10_v5" },
                     { "label": "Standard_NV72ads_A10_v5 (72 vCPU, 880GB, 2x A10 48GB)", "value": "Standard_NV72ads_A10_v5" },
+                    { "label": "── NVSv4 (AMD Radeon MI25) ──", "value": "" },
+                    { "label": "Standard_NV4as_v4 (4 vCPU, 14GB, 1/8x MI25 2GB)", "value": "Standard_NV4as_v4" },
+                    { "label": "Standard_NV8as_v4 (8 vCPU, 28GB, 1/4x MI25 4GB)", "value": "Standard_NV8as_v4" },
+                    { "label": "Standard_NV16as_v4 (16 vCPU, 56GB, 1/2x MI25 8GB)", "value": "Standard_NV16as_v4" },
+                    { "label": "Standard_NV32as_v4 (32 vCPU, 112GB, 1x MI25 16GB)", "value": "Standard_NV32as_v4" },
                     { "label": "── NC-series (NVIDIA K80) - Legacy ──", "value": "" },
                     { "label": "Standard_NC6 (6 vCPU, 56GB, 1x K80 12GB)", "value": "Standard_NC6" },
                     { "label": "Standard_NC12 (12 vCPU, 112GB, 2x K80 24GB)", "value": "Standard_NC12" },
@@ -699,6 +719,7 @@
       "redisSkuName": "[steps('database').redisSection.redisSkuName]",
       "redisHighAvailability": "[steps('database').redisSection.redisHighAvailability]",
       "redisZones": "[if(empty(steps('database').redisSection.redisZones), parse('[]'), split(steps('database').redisSection.redisZones, ','))]",
+      "enableRedisPublicAccess": "[steps('database').redisSection.enableRedisPublicAccess]",
       "kubernetesVersion": "[steps('compute').aksSection.kubernetesVersion]",
       "aksEnablePrivateCluster": "[steps('compute').aksSection.aksEnablePrivateCluster]",
       "aksAuthorizedIPRanges": "[if(empty(steps('compute').aksSection.aksAuthorizedIPRanges), parse('[]'), split(steps('compute').aksSection.aksAuthorizedIPRanges, ','))]",
@@ -706,7 +727,7 @@
       "aksSystemNodeCount": "[steps('compute').aksSection.aksSystemNodeCount]",
       "aksSystemNodeMinCount": "[steps('compute').aksSection.aksSystemNodeMinCount]",
       "aksSystemNodeMaxCount": "[steps('compute').aksSection.aksSystemNodeMaxCount]",
-      "deployGpuNodePool": true,
+      "deployGpuNodePool": "[steps('compute').gpuSection.deployGpuNodePool]",
       "gpuNodeVmSize": "[steps('compute').gpuSection.gpuNodeVmSize]",
       "storageAllowSharedKeyAccess": "[steps('security').storageSection.storageAllowSharedKeyAccess]",
       "enableWaf": "[steps('security').wafSection.enableWaf]",

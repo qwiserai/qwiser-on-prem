@@ -99,15 +99,9 @@ jq 'keys' deployment-outputs.json
 
 ## Phase 2: Post-Deployment Configuration
 
-### 2.1 Run Post-Deployment Script
-
-The post-deployment script seeds Key Vault secrets and App Configuration values.
-
-**From Azure Cloud Shell** (recommended for network access):
+Seeds Key Vault secrets and App Configuration values.
 
 ```bash
-cd infrastructure/bicep/scripts
-
 # Load values from deployment outputs
 RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
 KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
@@ -116,27 +110,16 @@ PLS_NAME=$(jq -r '.privateLinkServiceName.value' deployment-outputs.json)
 MYSQL_HOST=$(jq -r '.mysqlServerFqdn.value' deployment-outputs.json)
 REDIS_HOST=$(jq -r '.redisHostName.value' deployment-outputs.json)
 STORAGE_ACCOUNT=$(jq -r '.storageAccountName.value' deployment-outputs.json)
-STORAGE_QUEUE_URL="https://${STORAGE_ACCOUNT}.queue.core.windows.net"
 
-# Run post-deployment script
-./post-deploy.sh \
+./scripts/post-deploy.sh \
     --resource-group "$RESOURCE_GROUP" \
     --keyvault-name "$KEYVAULT_NAME" \
     --appconfig-name "$APPCONFIG_NAME" \
     --pls-name "$PLS_NAME" \
     --mysql-host "$MYSQL_HOST" \
     --redis-host "$REDIS_HOST" \
-    --storage-queue-url "$STORAGE_QUEUE_URL" \
+    --storage-queue-url "https://${STORAGE_ACCOUNT}.queue.core.windows.net" \
     --label production
-```
-
-**Verification**:
-```bash
-# Check Key Vault secrets were created
-az keyvault secret list --vault-name "$KEYVAULT_NAME" -o table
-
-# Check App Config keys were created
-az appconfig kv list -n "$APPCONFIG_NAME" --label production --top 10 -o table
 ```
 
 ---
@@ -507,18 +490,6 @@ If issues persist:
 1. Collect diagnostic logs: `kubectl logs --all-containers -l app.kubernetes.io/part-of=qwiser-university`
 2. Check Azure resource health in Portal
 3. Contact QWiser support with deployment outputs and logs
-
----
-
-## Cleanup
-
-After completing all phases, delete the deployment outputs file:
-
-```bash
-rm deployment-outputs.json
-```
-
-> **Security**: This file contains infrastructure details. Delete it after deployment is complete. You can always regenerate it from Azure if needed.
 
 ---
 

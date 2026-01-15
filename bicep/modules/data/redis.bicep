@@ -77,6 +77,9 @@ param zones array = []
 param evictionPolicy string = 'VolatileLRU'
 param clusteringPolicy string = 'EnterpriseCluster'
 
+@description('Enable public network access. Set to true for external embeddings-worker access during testing. Security is maintained via Entra ID auth.')
+param enablePublicAccess bool = false
+
 // Note: workloadIdentityPrincipalId removed - Redis Enterprise uses Access Policies, not RBAC
 
 // ============================================================================
@@ -106,8 +109,8 @@ resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' = {
     // Security: Minimum TLS 1.2
     minimumTlsVersion: '1.2'
 
-    // Security: Disable public network access (Private Endpoint only)
-    publicNetworkAccess: 'Disabled'
+    // Network access: Private Endpoint only by default, can enable public for external worker testing
+    publicNetworkAccess: enablePublicAccess ? 'Enabled' : 'Disabled'
 
     // High availability for data replication
     highAvailability: highAvailability

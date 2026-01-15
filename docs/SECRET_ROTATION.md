@@ -16,25 +16,25 @@ This guide covers procedures for rotating secrets in the QWiser University deplo
 
 ### Key Vault Secrets
 
-| Secret Name | Type | Rotation Impact | Recommended Frequency |
-|-------------|------|-----------------|----------------------|
-| JWT-SECRET | Auto-generated | Pod restart required | Quarterly |
-| INTERNAL-SECRET-KEY | Auto-generated | Pod restart required | Quarterly |
-| QDRANT-API-KEY | Auto-generated | Pod + Qdrant restart | Quarterly |
-| AI-FOUNDRY-API-KEY | Azure AI Foundry | Hot-reload | As needed |
-| LTI-PRIVATE-KEY | RSA key | Hot-reload + LMS update | Annually |
-| DB-USER | MySQL | N/A (managed) | N/A |
-| DB-PASSWORD | MySQL | Pod restart required | Annually |
-| STORAGE-ACCOUNT-KEY | Azure Storage | Hot-reload | Annually |
-| STORAGE-CONNECTION-STRING | Azure Storage | Hot-reload | Annually |
-| APPLICATIONINSIGHTS-CONNECTION-STRING | Azure | Hot-reload | N/A |
+| Secret Name                           | Type             | Rotation Impact         | Recommended Frequency |
+| ------------------------------------- | ---------------- | ----------------------- | --------------------- |
+| JWT-SECRET                            | Auto-generated   | Pod restart required    | Quarterly             |
+| INTERNAL-SECRET-KEY                   | Auto-generated   | Pod restart required    | Quarterly             |
+| QDRANT-API-KEY                        | Auto-generated   | Pod + Qdrant restart    | Quarterly             |
+| AI-FOUNDRY-API-KEY                    | Azure AI Foundry | Hot-reload              | As needed             |
+| LTI-PRIVATE-KEY                       | RSA key          | Hot-reload + LMS update | Annually              |
+| DB-USER                               | MySQL            | N/A (managed)           | N/A                   |
+| DB-PASSWORD                           | MySQL            | Pod restart required    | Annually              |
+| STORAGE-ACCOUNT-KEY                   | Azure Storage    | Hot-reload              | Annually              |
+| STORAGE-CONNECTION-STRING             | Azure Storage    | Hot-reload              | Annually              |
+| APPLICATIONINSIGHTS-CONNECTION-STRING | Azure            | Hot-reload              | N/A                   |
 
 ### Hot-Reload vs Pod Restart
 
-| Type | Description | User Impact |
-|------|-------------|-------------|
-| Hot-reload | Update sentinel key, services refresh automatically | None |
-| Pod restart | Rolling deployment restart required | Minimal (rolling) |
+| Type        | Description                                         | User Impact       |
+| ----------- | --------------------------------------------------- | ----------------- |
+| Hot-reload  | Update sentinel key, services refresh automatically | None              |
+| Pod restart | Rolling deployment restart required                 | Minimal (rolling) |
 
 ---
 
@@ -404,15 +404,15 @@ az monitor log-analytics query \
 
 ### Rotation Schedule
 
-| Secret | Frequency | Last Rotated | Next Due |
-|--------|-----------|--------------|----------|
-| JWT-SECRET | Quarterly | YYYY-MM-DD | YYYY-MM-DD |
-| INTERNAL-SECRET-KEY | Quarterly | YYYY-MM-DD | YYYY-MM-DD |
-| QDRANT-API-KEY | Quarterly | YYYY-MM-DD | YYYY-MM-DD |
-| AI-FOUNDRY-API-KEY | As needed | YYYY-MM-DD | - |
-| LTI-PRIVATE-KEY | Annually | YYYY-MM-DD | YYYY-MM-DD |
-| DB-PASSWORD | Annually | YYYY-MM-DD | YYYY-MM-DD |
-| STORAGE-ACCOUNT-KEY | Annually | YYYY-MM-DD | YYYY-MM-DD |
+| Secret              | Frequency | Last Rotated | Next Due   |
+| ------------------- | --------- | ------------ | ---------- |
+| JWT-SECRET          | Quarterly | YYYY-MM-DD   | YYYY-MM-DD |
+| INTERNAL-SECRET-KEY | Quarterly | YYYY-MM-DD   | YYYY-MM-DD |
+| QDRANT-API-KEY      | Quarterly | YYYY-MM-DD   | YYYY-MM-DD |
+| AI-FOUNDRY-API-KEY  | As needed | YYYY-MM-DD   | -          |
+| LTI-PRIVATE-KEY     | Annually  | YYYY-MM-DD   | YYYY-MM-DD |
+| DB-PASSWORD         | Annually  | YYYY-MM-DD   | YYYY-MM-DD |
+| STORAGE-ACCOUNT-KEY | Annually  | YYYY-MM-DD   | YYYY-MM-DD |
 
 ---
 

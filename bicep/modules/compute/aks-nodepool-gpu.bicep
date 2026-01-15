@@ -5,8 +5,9 @@
 //
 // GPU Options (see createUiDefinition.json for full list):
 //   - T4 series: Standard_NC4as_T4_v3 (recommended for production)
-//   - Legacy: Standard_NC6 (K80, cheap for testing)
+//   - NVSv4: Standard_NV4as_v4 (AMD MI25, widely available)
 //   - High-end: A100, H100, V100 for enterprise workloads
+//   - Legacy: NC6 (K80), NV6 (M60) - limited availability
 //
 // IMPORTANT:
 //   - GPU drivers: AKS managed GPU experience (automatic driver installation)

@@ -48,8 +48,9 @@ images:
     newTag: v1.0.0
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/smart-quiz
     newTag: v1.0.0
-  - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/embeddings-worker
-    newTag: v1.0.0
+  # EMBEDDINGS-WORKER: Running externally (see resources section comment)
+  # - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/embeddings-worker
+  #   newTag: v1.0.0
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/frontend
     newTag: v1.0.0
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/cronjobs
@@ -65,8 +66,10 @@ resources:
   - pod-disruption-budgets.yaml    # PDBs for availability (Phase 5)
   - frontend.yaml                  # Frontend deployment + service (Phase 5)
   - frontend-env-config.yaml       # Runtime config for frontend (Phase 5)
-  - embeddings-worker-msgs.yaml    # Dedicated message worker (Phase 5)
-  - embeddings-worker-hybrid.yaml  # Hybrid overflow worker (Phase 5)
+  # EMBEDDINGS-WORKER: Commented out for external deployment (no GPU quota in this subscription)
+  # To run embeddings-worker in-cluster, uncomment these and ensure GPU nodepool is deployed:
+  # - embeddings-worker-msgs.yaml    # Dedicated message worker (Phase 5)
+  # - embeddings-worker-hybrid.yaml  # Hybrid overflow worker (Phase 5)
   - cronjobs.yaml                  # CronJobs for maintenance tasks (Phase 5)
   - ml-models-pvc.yaml             # PVC for ML models Azure Files share (Phase 5)
 

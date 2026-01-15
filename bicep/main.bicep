@@ -108,6 +108,9 @@ param redisHighAvailability string = 'Enabled'
 @description('Redis availability zones for zone redundancy')
 param redisZones array = []
 
+@description('Enable public network access on Redis. Use ONLY for external embeddings-worker testing when GPU quota unavailable in this subscription. Security maintained via Entra ID auth.')
+param enableRedisPublicAccess bool = false
+
 // ============================================================================
 // AKS Parameters
 // ============================================================================
@@ -340,6 +343,7 @@ module redis 'modules/data/redis.bicep' = {
     skuName: redisSkuName
     highAvailability: redisHighAvailability
     zones: redisZones
+    enablePublicAccess: enableRedisPublicAccess
   }
 }
 
