@@ -74,7 +74,7 @@ After deployment completes, capture the outputs for use in all subsequent phases
 
 **Find your deployment name:**
 ```bash
-az deployment sub list -o table
+az deployment sub list --query "sort_by([?properties.provisioningState=='Succeeded'].{Name:name, State:properties.provisioningState, Timestamp:properties.timestamp}, &Timestamp)" -o table
 ```
 
 **Save outputs to file:**
@@ -129,12 +129,12 @@ Deploy AI models in Azure AI Foundry. See [AI_MODELS_SETUP.md](./AI_MODELS_SETUP
 
 ### Required Models
 
-| Model | Purpose | Minimum TPM |
-|-------|---------|-------------|
-| gpt-4.1-mini | Chat name generation, standalone questions | 100K |
-| gpt-5.2 | Main generation (questions, chat, trees) | 200K |
-| text-embedding-3-large | Vector embeddings | 500K |
-| mistral-document-ai | OCR/Document processing | 50K |
+| Model                  | Purpose                                    | Minimum TPM |
+| ---------------------- | ------------------------------------------ | ----------- |
+| gpt-4.1-mini           | Chat name generation, standalone questions | 100K        |
+| gpt-5.2                | Main generation (questions, chat, trees)   | 200K        |
+| text-embedding-3-large | Vector embeddings                          | 500K        |
+| mistral-document-ai    | OCR/Document processing                    | 50K         |
 
 ### Update App Configuration
 
@@ -185,10 +185,10 @@ Download HuggingFace models and mount to Azure Files. See [ML_MODELS_SETUP.md](.
 
 ### Required Models
 
-| Model | Size | Purpose |
-|-------|------|---------|
-| BAAI/bge-large-en-v1.5 | ~1.3 GB | FastEmbed text embeddings |
-| sentence-transformers/all-MiniLM-L6-v2 | ~90 MB | Sentence similarity |
+| Model                                  | Size    | Purpose                   |
+| -------------------------------------- | ------- | ------------------------- |
+| BAAI/bge-large-en-v1.5                 | ~1.3 GB | FastEmbed text embeddings |
+| sentence-transformers/all-MiniLM-L6-v2 | ~90 MB  | Sentence similarity       |
 
 ### Upload to Azure Files
 
@@ -456,13 +456,13 @@ asyncio.run(test())
 
 ### Common Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Pods stuck in `Pending` | Node pool not ready or GPU nodes not available | Check node pools: `kubectl get nodes` |
-| `ImagePullBackOff` | ACR authentication or image not found | Verify ACR import and AKS-ACR attachment |
-| Database connection refused | Private endpoint not configured | Check MySQL private endpoint status |
-| Redis auth failed | Workload Identity not configured | Verify federated credentials |
-| Config not loading | App Config network access | Use Cloud Shell or VPN |
+| Issue                       | Cause                                          | Solution                                 |
+| --------------------------- | ---------------------------------------------- | ---------------------------------------- |
+| Pods stuck in `Pending`     | Node pool not ready or GPU nodes not available | Check node pools: `kubectl get nodes`    |
+| `ImagePullBackOff`          | ACR authentication or image not found          | Verify ACR import and AKS-ACR attachment |
+| Database connection refused | Private endpoint not configured                | Check MySQL private endpoint status      |
+| Redis auth failed           | Workload Identity not configured               | Verify federated credentials             |
+| Config not loading          | App Config network access                      | Use Cloud Shell or VPN                   |
 
 ### Diagnostic Commands
 
