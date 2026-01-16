@@ -186,15 +186,15 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       az account show --query "{subscriptionId:id, user:user.name}" -o table
       echo "Authentication successful."
 
-      # Wait for RBAC role assignment to propagate (can take up to 5 minutes)
-      # Azure RBAC propagation is eventually consistent - we must wait for it
+      # Wait for RBAC role assignment to propagate
+      # Azure RBAC propagation is eventually consistent and can take 10+ minutes for new AKS clusters
       echo "Waiting for RBAC permissions to propagate..."
-      echo "Initial wait of 60 seconds for RBAC propagation..."
-      sleep 60
+      echo "Initial wait of 120 seconds for RBAC propagation..."
+      sleep 120
 
       RBAC_READY=false
-      for i in {1..30}; do
-        echo "Testing RBAC permissions (attempt $i/30)..."
+      for i in {1..60}; do
+        echo "Testing RBAC permissions (attempt $i/60)..."
 
         # Test the actual permission we need: command invoke + reading results
         RBAC_OUTPUT=$(az aks command invoke \
@@ -216,7 +216,7 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       done
 
       if [ "$RBAC_READY" != "true" ]; then
-        echo "ERROR: RBAC permissions did not propagate within 6 minutes"
+        echo "ERROR: RBAC permissions did not propagate within 12 minutes"
         echo "The AKS Cluster Admin role assignment may not have propagated yet."
         echo "Please retry the deployment."
         exit 1
