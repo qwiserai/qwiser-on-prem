@@ -179,10 +179,10 @@ To apply manifests with image substitution:
 cd k8s/base
 
 # For private AKS (recommended):
-./apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
+./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
 
 # Or with direct kubectl access (requires VPN):
-./apply.sh
+./scripts/apply.sh
 ```
 
 ---

@@ -351,10 +351,10 @@ az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
 cd k8s/base
 
 # For private AKS:
-./apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
+./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
 
 # Or preview what will be applied:
-./apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME --dry-run
+./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME --dry-run
 ```
 
 **Verification**:
