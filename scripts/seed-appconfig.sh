@@ -137,6 +137,28 @@ echo "Label: $LABEL"
 echo "Force overwrite: $FORCE"
 echo ""
 
+# Pre-flight check: verify App Configuration access
+echo -e "${GRAY}Checking App Configuration access...${NC}"
+if ! error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --top 1 -o none 2>&1); then
+    echo -e "${RED}[ERROR] Cannot access App Configuration '$APPCONFIG_NAME'${NC}"
+    echo -e "${RED}$error_output${NC}"
+    echo ""
+    if echo "$error_output" | grep -qi "Forbidden\|AuthorizationFailed\|not authorized\|does not have authorization"; then
+        echo -e "${YELLOW}You need 'App Configuration Data Owner' role. Run:${NC}"
+        echo ""
+        echo "  az role assignment create \\"
+        echo "      --role \"App Configuration Data Owner\" \\"
+        echo "      --assignee-object-id \$(az ad signed-in-user show --query id -o tsv) \\"
+        echo "      --assignee-principal-type User \\"
+        echo "      --scope \$(az appconfig show --name $APPCONFIG_NAME --query id -o tsv)"
+        echo ""
+        echo -e "${YELLOW}Wait 30-60 seconds after assigning, then re-run this script.${NC}"
+    fi
+    exit 1
+fi
+echo -e "${GREEN}[OK]${NC} App Configuration access verified"
+echo ""
+
 # Function to set a regular key-value
 set_key() {
     local key=$1

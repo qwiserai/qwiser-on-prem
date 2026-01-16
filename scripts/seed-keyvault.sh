@@ -81,6 +81,28 @@ echo "Key Vault: $KEYVAULT_NAME"
 echo "Force overwrite: $FORCE"
 echo ""
 
+# Pre-flight check: verify Key Vault access
+echo -e "${GRAY}Checking Key Vault access...${NC}"
+if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxresults 1 -o none 2>&1); then
+    echo -e "${RED}[ERROR] Cannot access Key Vault '$KEYVAULT_NAME'${NC}"
+    echo -e "${RED}$error_output${NC}"
+    echo ""
+    if echo "$error_output" | grep -qi "Forbidden\|ForbiddenByRbac\|not authorized"; then
+        echo -e "${YELLOW}You need 'Key Vault Secrets Officer' role. Run:${NC}"
+        echo ""
+        echo "  az role assignment create \\"
+        echo "      --role \"Key Vault Secrets Officer\" \\"
+        echo "      --assignee-object-id \$(az ad signed-in-user show --query id -o tsv) \\"
+        echo "      --assignee-principal-type User \\"
+        echo "      --scope \$(az keyvault show --name $KEYVAULT_NAME --query id -o tsv)"
+        echo ""
+        echo -e "${YELLOW}Wait 30-60 seconds after assigning, then re-run this script.${NC}"
+    fi
+    exit 1
+fi
+echo -e "${GREEN}[OK]${NC} Key Vault access verified"
+echo ""
+
 # Function to check if secret exists
 secret_exists() {
     local vault_name=$1
