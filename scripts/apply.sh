@@ -299,6 +299,10 @@ echo "Namespace:      $NAMESPACE"
 echo "Kustomize Dir:  $KUSTOMIZE_DIR"
 echo ""
 
+# Validate versions before anything slow (fail fast)
+validate_versions
+echo ""
+
 # Check cluster access
 check_cluster_access
 
@@ -361,10 +365,6 @@ echo "  UAMI Client ID:    ${UAMI_CLIENT_ID:0:8}..."
 echo "  Key Vault Name:    $KEY_VAULT_NAME"
 echo "  Tenant ID:         ${TENANT_ID:0:8}..."
 echo "  Storage Account:   $STORAGE_ACCOUNT_NAME"
-echo ""
-
-# Validate versions before building
-validate_versions
 echo ""
 
 # Build manifests with kustomize
