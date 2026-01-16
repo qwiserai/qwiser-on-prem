@@ -148,8 +148,11 @@ echo ""
 # Pre-flight check: verify App Configuration access
 echo -e "${GRAY}Checking App Configuration access...${NC}"
 # Use --auth-mode login to force RBAC auth and avoid access key fallback noise
+# Temporarily disable set -e to capture the error properly
+set +e
 error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --auth-mode login --top 1 -o none 2>&1)
 exit_code=$?
+set -e
 if [[ $exit_code -ne 0 ]]; then
     echo ""
     echo -e "${RED}[ERROR] Cannot access App Configuration '$APPCONFIG_NAME'${NC}"
