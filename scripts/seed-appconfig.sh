@@ -160,7 +160,11 @@ if [[ $exit_code -ne 0 ]]; then
     echo -e "${GRAY}Azure CLI output:${NC}"
     echo -e "${RED}$error_output${NC}"
     echo ""
-    if echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
+    
+    # Check if public network access is disabled (this causes generic "Forbidden" errors)
+    public_access=$(az appconfig show --name "$APPCONFIG_NAME" --resource-group "$RESOURCE_GROUP" --query "publicNetworkAccess" -o tsv 2>/dev/null || echo "unknown")
+    
+    if [[ "$public_access" == "Disabled" ]] || echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
         echo -e "${YELLOW}App Configuration has public network access disabled (private endpoint only).${NC}"
         echo ""
         echo "Options:"
@@ -182,7 +186,10 @@ if [[ $exit_code -ne 0 ]]; then
         echo "      --assignee-principal-type User \\"
         echo "      --scope \$(az appconfig show --name $APPCONFIG_NAME --resource-group $RESOURCE_GROUP --query id -o tsv)"
         echo ""
-        echo -e "${YELLOW}Wait 30-60 seconds after assigning, then re-run this script.${NC}"
+        echo -e "${YELLOW}Wait 30-60 seconds, then verify access:${NC}"
+        echo ""
+        echo "  az appconfig kv list -n $APPCONFIG_NAME --auth-mode login --top 1 -o table"
+        echo ""
     fi
     echo ""
     echo -e "${RED}[FAILED] App Configuration seeding failed${NC}"

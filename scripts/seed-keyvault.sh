@@ -122,7 +122,10 @@ if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxr
         echo "      --assignee-principal-type User \\"
         echo "      --scope \$(az keyvault show --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --query id -o tsv)"
         echo ""
-        echo -e "${YELLOW}Wait 30-60 seconds after assigning, then re-run this script.${NC}"
+        echo -e "${YELLOW}Wait 30-60 seconds, then verify access:${NC}"
+        echo ""
+        echo "  az keyvault secret list --vault-name $KEYVAULT_NAME --maxresults 1 -o table"
+        echo ""
     fi
     exit 1
 fi
