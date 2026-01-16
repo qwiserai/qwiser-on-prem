@@ -143,6 +143,9 @@ validate_versions() {
     
     # Parse VERSIONS.txt - extract image:tag pairs
     while IFS= read -r line || [ -n "$line" ]; do
+        # Strip Windows carriage returns
+        line="${line//$'\r'/}"
+        
         # Skip comments and empty lines
         [[ -z "${line// /}" ]] && continue
         [[ "$line" =~ ^# ]] && continue
@@ -157,10 +160,13 @@ validate_versions() {
         local in_image_block=false
         
         while IFS= read -r kline; do
+            # Strip Windows carriage returns
+            kline="${kline//$'\r'/}"
+            
             if [[ "$kline" =~ "name:".*/qwiser/${image_name##*/} ]] || [[ "$kline" =~ "name:".*"${image_name##*/}" ]]; then
                 in_image_block=true
             elif [ "$in_image_block" = true ] && [[ "$kline" =~ newTag: ]]; then
-                kustomization_tag=$(echo "$kline" | sed 's/.*newTag:[[:space:]]*//' | tr -d ' ')
+                kustomization_tag=$(echo "$kline" | sed 's/.*newTag:[[:space:]]*//' | tr -d ' \r')
                 break
             elif [ "$in_image_block" = true ] && [[ "$kline" =~ "- name:" ]]; then
                 # Moved to next image block without finding newTag
