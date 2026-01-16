@@ -210,6 +210,7 @@ set_key() {
     local error_output
     if ! error_output=$(az appconfig kv set \
         -n "$APPCONFIG_NAME" \
+        --auth-mode login \
         --key "$key" \
         --value "$value" \
         --label "$LABEL" \
@@ -235,6 +236,7 @@ set_keyvault_ref() {
     local error_output
     if ! error_output=$(az appconfig kv set-keyvault \
         -n "$APPCONFIG_NAME" \
+        --auth-mode login \
         --key "$key" \
         --secret-identifier "$secret_uri" \
         --label "$LABEL" \
