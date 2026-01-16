@@ -106,11 +106,11 @@ if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxr
         echo "  2. Temporarily enable public access with your IP:"
         echo ""
         echo "     az keyvault update --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --public-network-access Enabled"
-        echo "     az keyvault network-rule add --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \$(curl -s ifconfig.me)"
+        echo "     az keyvault network-rule add --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \<your-ip-address>"
         echo ""
         echo -e "${YELLOW}After seeding completes, re-secure the Key Vault by removing public access:${NC}"
         echo ""
-        echo "     az keyvault network-rule remove --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \$(curl -s ifconfig.me)"
+        echo "     az keyvault network-rule remove --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \<your-ip-address>"
         echo "     az keyvault update --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --public-network-access Disabled"
         echo ""
     elif echo "$error_output" | grep -qi "ForbiddenByRbac\|not authorized\|does not have authorization"; then

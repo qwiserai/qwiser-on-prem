@@ -147,8 +147,14 @@ echo ""
 
 # Pre-flight check: verify App Configuration access
 echo -e "${GRAY}Checking App Configuration access...${NC}"
-if ! error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --top 1 -o none 2>&1); then
+# Use --auth-mode login to force RBAC auth and avoid access key fallback noise
+error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --auth-mode login --top 1 -o none 2>&1)
+exit_code=$?
+if [[ $exit_code -ne 0 ]]; then
+    echo ""
     echo -e "${RED}[ERROR] Cannot access App Configuration '$APPCONFIG_NAME'${NC}"
+    echo ""
+    echo -e "${GRAY}Azure CLI output:${NC}"
     echo -e "${RED}$error_output${NC}"
     echo ""
     if echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
@@ -164,7 +170,7 @@ if ! error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --top 1 -o none 2>
         echo ""
         echo "     az appconfig update --name $APPCONFIG_NAME --resource-group $RESOURCE_GROUP --enable-public-network false"
         echo ""
-    elif echo "$error_output" | grep -qi "Forbidden\|AuthorizationFailed\|not authorized\|does not have authorization"; then
+    elif echo "$error_output" | grep -qi "Forbidden\|AuthorizationFailed\|not authorized\|does not have authorization\|access key"; then
         echo -e "${YELLOW}You need 'App Configuration Data Owner' role. Run:${NC}"
         echo ""
         echo "  az role assignment create \\"
@@ -175,6 +181,8 @@ if ! error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --top 1 -o none 2>
         echo ""
         echo -e "${YELLOW}Wait 30-60 seconds after assigning, then re-run this script.${NC}"
     fi
+    echo ""
+    echo -e "${RED}[FAILED] App Configuration seeding failed${NC}"
     exit 1
 fi
 echo -e "${GREEN}[OK]${NC} App Configuration access verified"
