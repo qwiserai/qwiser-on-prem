@@ -528,7 +528,9 @@ spec:
               app.kubernetes.io/name: ingress-nginx
       ports:
         - protocol: TCP
-          port: 80
+          port: 80    # service port
+        - protocol: TCP
+          port: 8080  # container port (network policies work at pod level)
   egress:
     # DNS only (for nginx resolver if configured)
     - to:
