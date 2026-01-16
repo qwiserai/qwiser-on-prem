@@ -27,14 +27,15 @@ Before deploying, see [PREREQUISITES.md](docs/PREREQUISITES.md) for:
 
 Click the button at the top of this page, fill in the parameters, and deploy. Recommended for built-in validations and guided configuration.
 
-After deployment completes, clone this repo for post-deployment scripts:
+After deployment completes:
 
-```bash
-git clone https://github.com/qwiserai/qwiser-on-prem.git
-cd qwiser-on-prem
-```
+1. Clone this repo for post-deployment scripts:
+   ```bash
+   git clone https://github.com/qwiserai/qwiser-on-prem.git
+   cd qwiser-on-prem
+   ```
 
-Then continue to [Post-Deployment Steps](#post-deployment-steps).
+2. Continue to **[DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)**.
 
 ### Option B: Deploy via CLI
 
