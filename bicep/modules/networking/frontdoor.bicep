@@ -135,7 +135,7 @@ resource origin 'Microsoft.Cdn/profiles/originGroups/origins@2024-02-01' = {
     priority: 1
     weight: 1000
     enabledState: 'Enabled'
-    enforceCertificateNameCheck: false
+    enforceCertificateNameCheck: true
 
     // Private Link configuration
     sharedPrivateLinkResource: {

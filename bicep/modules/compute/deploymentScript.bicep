@@ -106,7 +106,7 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
   }
   properties: {
     azCliVersion: '2.67.0'
-    timeout: 'PT30M'
+    timeout: 'PT15M'
     retentionInterval: 'P1D'
     cleanupPreference: 'OnSuccess'
     environmentVariables: [
@@ -177,55 +177,23 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       set -e
 
       echo "Installing NGINX Ingress Controller on AKS cluster..."
-      echo "Cluster: $AKS_CLUSTER_NAME in $AKS_RESOURCE_GROUP"
 
-      # Explicitly login with user-assigned managed identity
-      echo "Authenticating with user-assigned managed identity..."
-      echo "Using client ID: $UAMI_CLIENT_ID"
-      az login --identity --username "$UAMI_CLIENT_ID" --allow-no-subscriptions
-      az account show --query "{subscriptionId:id, user:user.name}" -o table
-      echo "Authentication successful."
+      # Login with user-assigned managed identity
+      az login --identity --username "$UAMI_CLIENT_ID" --allow-no-subscriptions -o none
 
-      # Wait for RBAC role assignment to propagate
-      # Azure RBAC propagation is eventually consistent and can take 10+ minutes for new AKS clusters
-      echo "Waiting for RBAC permissions to propagate..."
-      echo "Initial wait of 30 seconds for RBAC propagation..."
-      sleep 30
-
-      RBAC_READY=false
-      for i in {1..60}; do
-        echo "Testing RBAC permissions (attempt $i/60)..."
-
-        # Force token refresh - critical! Cached tokens don't pick up new role assignments
-        echo "Refreshing credentials (clearing cache and re-authenticating)..."
-        az account clear 2>/dev/null || true
-        az login --identity --username "$UAMI_CLIENT_ID" --allow-no-subscriptions -o none
-
-        # Test the actual permission we need: command invoke + reading results
-        RBAC_OUTPUT=$(az aks command invoke \
-          --resource-group "$AKS_RESOURCE_GROUP" \
-          --name "$AKS_CLUSTER_NAME" \
-          --command "echo RBAC_TEST_OK" \
-          --query "logs" -o tsv 2>&1) || true
-
-        echo "RBAC test output: [$RBAC_OUTPUT]"
-
-        if echo "$RBAC_OUTPUT" | grep -q "RBAC_TEST_OK"; then
-          echo "RBAC permissions verified successfully."
-          RBAC_READY=true
+      # Wait for RBAC propagation (retry every 5s, up to 45s)
+      echo "Waiting for RBAC permissions..."
+      for i in {1..9}; do
+        if az aks command invoke --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --command "echo OK" -o none 2>/dev/null; then
+          echo "RBAC ready."
           break
         fi
-
-        echo "RBAC not ready yet, waiting 10 seconds..."
-        sleep 10
+        if [ $i -eq 9 ]; then
+          echo "ERROR: RBAC not ready after 45 seconds"
+          exit 1
+        fi
+        sleep 5
       done
-
-      if [ "$RBAC_READY" != "true" ]; then
-        echo "ERROR: RBAC permissions did not propagate within 12 minutes"
-        echo "The AKS Cluster Admin role assignment may not have propagated yet."
-        echo "Please retry the deployment."
-        exit 1
-      fi
 
       # Create the Helm install command with values for internal LoadBalancer
       HELM_COMMAND="helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
@@ -250,19 +218,16 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
         --wait \
         --timeout 10m"
 
-      # Execute via az aks command invoke (works for both public and private clusters)
-      echo "Running: az aks command invoke..."
+      # Install NGINX Ingress via Helm
+      echo "Installing NGINX Ingress via Helm..."
       az aks command invoke \
         --resource-group "$AKS_RESOURCE_GROUP" \
         --name "$AKS_CLUSTER_NAME" \
         --command "helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && helm repo update && $HELM_COMMAND"
 
-      echo "NGINX Ingress Controller installed. Waiting for LoadBalancer..."
-
-      # Wait for LoadBalancer to be created and get external IP
-      for i in {1..30}; do
-        echo "Checking for LoadBalancer IP (attempt $i/30)..."
-
+      # Wait for LoadBalancer IP (usually immediate with --wait flag)
+      echo "Waiting for LoadBalancer IP..."
+      for i in {1..10}; do
         LB_IP=$(az aks command invoke \
           --resource-group "$AKS_RESOURCE_GROUP" \
           --name "$AKS_CLUSTER_NAME" \
@@ -270,21 +235,18 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
           --query "logs" -o tsv 2>/dev/null | tr -d '\n')
 
         if [ -n "$LB_IP" ] && [ "$LB_IP" != "null" ]; then
-          echo "LoadBalancer IP assigned: $LB_IP"
+          echo "LoadBalancer IP: $LB_IP"
           break
         fi
-
         sleep 10
       done
 
       if [ -z "$LB_IP" ] || [ "$LB_IP" == "null" ]; then
-        echo "ERROR: LoadBalancer IP not assigned after 5 minutes"
+        echo "ERROR: LoadBalancer IP not assigned"
         exit 1
       fi
 
-      # Get the internal LoadBalancer resource ID from the node resource group
-      echo "Querying for internal LoadBalancer in $NODE_RESOURCE_GROUP..."
-
+      # Get internal LoadBalancer resource ID
       ILB_ID=$(az network lb show \
         --resource-group "$NODE_RESOURCE_GROUP" \
         --name "kubernetes-internal" \
@@ -295,8 +257,6 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
         exit 1
       fi
 
-      echo "ILB Resource ID: $ILB_ID"
-
       # Get frontend IP configuration ID
       FRONTEND_IP_CONFIG_ID=$(az network lb frontend-ip list \
         --resource-group "$NODE_RESOURCE_GROUP" \
@@ -304,7 +264,6 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
         --query "[?privateIPAddress=='$NGINX_PRIVATE_IP'].id | [0]" -o tsv 2>/dev/null || echo "")
 
       if [ -z "$FRONTEND_IP_CONFIG_ID" ]; then
-        # Try getting any frontend IP config if specific IP not found
         FRONTEND_IP_CONFIG_ID=$(az network lb frontend-ip list \
           --resource-group "$NODE_RESOURCE_GROUP" \
           --lb-name "kubernetes-internal" \
@@ -316,17 +275,9 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
         exit 1
       fi
 
-      echo "Frontend IP Configuration ID: $FRONTEND_IP_CONFIG_ID"
-
-      # ============================================================
-      # Create QWiser ConfigMap with URL environment variables
-      # ============================================================
-      echo "Creating QWiser ConfigMap in namespace $QWISER_NAMESPACE..."
-
-      # Extract domain from BASE_URL (remove https:// prefix)
-      # e.g., https://qwiser.university.edu -> qwiser.university.edu
+      # Create QWiser ConfigMap
+      echo "Creating QWiser ConfigMap..."
       CUSTOM_DOMAIN=$(echo "$BASE_URL" | sed 's|^https://||' | sed 's|^http://||' | sed 's|/$||')
-      echo "Extracted custom domain: $CUSTOM_DOMAIN"
 
       CONFIGMAP_YAML="apiVersion: v1
 kind: ConfigMap
