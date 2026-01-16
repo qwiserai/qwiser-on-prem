@@ -74,8 +74,7 @@ After deployment completes, capture the outputs for use in all subsequent phases
 
 **Find your deployment name:**
 ```bash
-# List recent deployments (look for the one with your resource group name)
-az deployment sub list --query "[?contains(name, 'main') || contains(name, 'qwiser')].{name:name, timestamp:properties.timestamp}" -o table
+az deployment sub list -o table
 ```
 
 **Save outputs to file:**
