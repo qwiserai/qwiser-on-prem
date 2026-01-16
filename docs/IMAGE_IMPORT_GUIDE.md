@@ -64,23 +64,6 @@ export QWISER_ACR_PASSWORD="<provided-by-qwiser>"
     --target-acr $ACR_NAME
 ```
 
-**Windows (PowerShell):**
-
-```powershell
-cd scripts
-
-# Option A: Using environment variables
-$env:QWISER_ACR_USERNAME = "customer-youruni-pull"
-$env:QWISER_ACR_PASSWORD = "<provided-by-qwiser>"
-.\import-images.ps1 -TargetAcr $ACR_NAME
-
-# Option B: Using parameters
-.\import-images.ps1 `
-    -SourceUser "customer-youruni-pull" `
-    -SourcePassword "<provided-by-qwiser>" `
-    -TargetAcr $ACR_NAME
-```
-
 **Dry run (see what would happen without importing):**
 
 ```bash
@@ -217,13 +200,11 @@ images:
 ### Step 4: Apply Updates
 
 ```bash
-cd k8s/base
-
 # For private AKS:
-./apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
+./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
 
 # Or with direct kubectl access:
-./apply.sh
+./scripts/apply.sh
 ```
 
 Or trigger a rolling update for specific services:

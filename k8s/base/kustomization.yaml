@@ -13,9 +13,11 @@ commonLabels:
 # All secrets are handled via Azure App Configuration with Key Vault references.
 #
 # HOW TO DEPLOY:
-#   After Bicep deployment completes, simply run:
+#   After Bicep deployment completes, from the repo root run:
 #
-#     ./apply.sh
+#     ./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
+#     or if you have direct kubectl access (requires VPN):
+#     ./scripts/apply.sh
 #
 #   The script automatically:
 #     - Reads CUSTOM_DOMAIN and ACR_LOGIN_SERVER from qwiser-config ConfigMap
@@ -23,21 +25,22 @@ commonLabels:
 #     - Substitutes all placeholders
 #     - Applies to cluster
 #
-#   No arguments needed - all configuration comes from the ConfigMap created by Bicep.
+#   All configuration comes from the ConfigMap created by Bicep.
 #
 # IMAGE VERSIONING:
 #   All image tags are managed centrally below. To update for a new release:
 #   1. Update the newTag values below to the release version (e.g., v1.0.0)
 #   2. Update VERSIONS.txt to match
-#   3. Run ./apply.sh
+#   3. Run ./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
 #
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Image Tags (centralized version management)
 # -----------------------------------------------------------------------------
-# Update these for each release. All services should use the same version.
+# Each service has its own version tag (services are released independently).
 # The image name includes REPLACE_WITH_ACR_LOGIN_SERVER which apply.sh substitutes.
+# These tags should match the versions in VERSIONS.txt.
 # -----------------------------------------------------------------------------
 images:
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/public-api

@@ -8,15 +8,16 @@
 #
 # Usage:
 #   Direct kubectl (requires VPN/network access to private AKS):
-#     ./apply.sh
+#     ./scripts/apply.sh
 #
 #   Via az aks command invoke (for private AKS without VPN):
-#     ./apply.sh --invoke --resource-group <RG> --aks-name <AKS>
+#     ./scripts/apply.sh --invoke -g <RG> -n <AKS>
 #
 # Options:
 #   --invoke              Use az aks command invoke (required for private AKS)
 #   --resource-group, -g  Azure resource group name (required with --invoke)
 #   --aks-name, -n        AKS cluster name (required with --invoke)
+#   --kustomize-dir, -k   Path to kustomization.yaml directory (default: k8s/base)
 #   --namespace           Kubernetes namespace (default: default)
 #   --dry-run             Show what would be applied without applying
 #   -h, --help            Show this help message
@@ -32,6 +33,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Default values
 NAMESPACE="default"
@@ -39,6 +41,7 @@ USE_INVOKE=false
 RESOURCE_GROUP=""
 AKS_NAME=""
 DRY_RUN=false
+KUSTOMIZE_DIR=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -55,6 +58,10 @@ while [[ $# -gt 0 ]]; do
             AKS_NAME="$2"
             shift 2
             ;;
+        --kustomize-dir|-k)
+            KUSTOMIZE_DIR="$2"
+            shift 2
+            ;;
         --namespace)
             NAMESPACE="$2"
             shift 2
@@ -64,7 +71,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            head -35 "$0" | tail -30
+            head -38 "$0" | tail -33
             exit 0
             ;;
         *)
@@ -74,6 +81,28 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Set default kustomize dir if not specified
+if [ -z "$KUSTOMIZE_DIR" ]; then
+    KUSTOMIZE_DIR="$REPO_ROOT/k8s/base"
+fi
+
+# Resolve to absolute path if relative
+if [[ "$KUSTOMIZE_DIR" != /* ]]; then
+    KUSTOMIZE_DIR="$(cd "$REPO_ROOT" && cd "$KUSTOMIZE_DIR" 2>/dev/null && pwd)" || {
+        echo "[ERROR] Kustomize directory not found: $KUSTOMIZE_DIR"
+        exit 1
+    }
+fi
+
+# Verify kustomization.yaml exists
+if [ ! -f "$KUSTOMIZE_DIR/kustomization.yaml" ]; then
+    echo "[ERROR] kustomization.yaml not found in: $KUSTOMIZE_DIR"
+    echo ""
+    echo "Use -k to specify the directory containing kustomization.yaml"
+    echo "Example: ./scripts/apply.sh -k k8s/base --invoke -g \$RESOURCE_GROUP -n \$AKS_NAME"
+    exit 1
+fi
 
 # =============================================================================
 # Helper Functions
@@ -153,6 +182,7 @@ else
     echo "Mode:           Direct kubectl"
 fi
 echo "Namespace:      $NAMESPACE"
+echo "Kustomize Dir:  $KUSTOMIZE_DIR"
 echo ""
 
 # Check cluster access
@@ -221,10 +251,9 @@ echo ""
 
 # Build manifests with kustomize
 echo "Building manifests with kustomize..."
-cd "$SCRIPT_DIR"
 
 # Generate the substituted manifests
-MANIFESTS=$(kubectl kustomize . | \
+MANIFESTS=$(kubectl kustomize "$KUSTOMIZE_DIR" | \
     sed "s/REPLACE_WITH_CUSTOM_DOMAIN/$CUSTOM_DOMAIN/g" | \
     sed "s/REPLACE_WITH_ACR_LOGIN_SERVER/${ACR_LOGIN_SERVER//\//\\/}/g" | \
     sed "s/REPLACE_WITH_UAMI_CLIENT_ID/$UAMI_CLIENT_ID/g" | \

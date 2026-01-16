@@ -21,7 +21,7 @@
 #
 # DEPLOYMENT:
 #   Run ./apply.sh - substitutes STORAGE_ACCOUNT_NAME and RESOURCE_GROUP placeholders.
-#   The storage-account-key Secret must exist (created by seed-keyvault.ps1 or manually).
+#   The storage-account-key Secret must exist (created by seed-keyvault.sh or manually).
 #
 # =============================================================================
 
@@ -32,7 +32,7 @@
 # Contains storage account name and key for mounting Azure Files.
 # Created by:
 #   - Bicep outputs storage account name
-#   - seed-keyvault.ps1 creates the key in Key Vault
+#   - seed-keyvault.sh creates the key in Key Vault
 #   - CSI Driver or manual Secret creation syncs key to cluster
 #
 # IMPORTANT: This Secret must exist before the PV can be used.

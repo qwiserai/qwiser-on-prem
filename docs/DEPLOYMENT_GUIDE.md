@@ -286,7 +286,7 @@ az acr repository list --name $ACR_NAME -o table
 ### 6.3 Verify AKS Can Pull Images
 
 ```bash
-# Test that AKS can pull from your ACR
+# Test that AKS can pull from your ACR (If you have VPN access to the cluster. Otherwise use invoke as shown in IMAGE_IMPORT_GUIDE.md)
 kubectl run test-pull --image=$ACR_NAME.azurecr.io/qwiser/public-api:v0.0.2 --restart=Never --command -- sleep 10
 kubectl get pod test-pull  # Should be Running, not ImagePullBackOff
 kubectl delete pod test-pull
