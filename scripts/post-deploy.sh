@@ -191,7 +191,7 @@ else
     force_arg=""
     [[ "$FORCE" == "true" ]] && force_arg="-f"
 
-    if ! "$SCRIPT_DIR/seed-keyvault.sh" -k "$KEYVAULT_NAME" $force_arg; then
+    if ! "$SCRIPT_DIR/seed-keyvault.sh" -k "$KEYVAULT_NAME" -g "$RESOURCE_GROUP" $force_arg; then
         echo -e "${RED}[FAILED] Key Vault seeding failed${NC}"
         exit 1
     fi
@@ -215,6 +215,7 @@ else
 
     if ! "$SCRIPT_DIR/seed-appconfig.sh" \
         --appconfig-name "$APPCONFIG_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
         --keyvault-uri "$KEYVAULT_URI" \
         --label "$LABEL" \
         --mysql-host "$MYSQL_HOST" \

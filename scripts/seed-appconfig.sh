@@ -37,6 +37,7 @@ NC='\033[0m' # No Color
 
 # Default values
 APPCONFIG_NAME=""
+RESOURCE_GROUP=""
 KEYVAULT_URI=""
 LABEL=""
 MYSQL_HOST=""
@@ -51,6 +52,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --appconfig-name)
             APPCONFIG_NAME="$2"
+            shift 2
+            ;;
+        -g|--resource-group)
+            RESOURCE_GROUP="$2"
             shift 2
             ;;
         --keyvault-uri)
@@ -86,10 +91,11 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 --appconfig-name <name> --keyvault-uri <uri> --label <label> ..."
+            echo "Usage: $0 --appconfig-name <name> -g <resource-group> --keyvault-uri <uri> --label <label> ..."
             echo ""
             echo "Required options:"
             echo "  --appconfig-name         Name of the App Configuration store"
+            echo "  -g, --resource-group     Resource group name"
             echo "  --keyvault-uri           Key Vault URI (e.g., https://myvault.vault.azure.net/)"
             echo "  --label                  Label for configuration keys"
             echo "  --mysql-host             MySQL server FQDN"
@@ -112,6 +118,7 @@ done
 # Validate required parameters
 missing_params=()
 [[ -z "$APPCONFIG_NAME" ]] && missing_params+=("--appconfig-name")
+[[ -z "$RESOURCE_GROUP" ]] && missing_params+=("--resource-group")
 [[ -z "$KEYVAULT_URI" ]] && missing_params+=("--keyvault-uri")
 [[ -z "$LABEL" ]] && missing_params+=("--label")
 [[ -z "$MYSQL_HOST" ]] && missing_params+=("--mysql-host")
@@ -132,6 +139,7 @@ echo -e "${CYAN}QWiser App Configuration Seeding${NC}"
 echo -e "${CYAN}======================================${NC}"
 echo ""
 echo "App Configuration: $APPCONFIG_NAME"
+echo "Resource Group: $RESOURCE_GROUP"
 echo "Key Vault URI: $KEYVAULT_URI"
 echo "Label: $LABEL"
 echo "Force overwrite: $FORCE"
@@ -148,9 +156,13 @@ if ! error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --top 1 -o none 2>
         echo ""
         echo "Options:"
         echo "  1. Use Azure Cloud Shell (has private endpoint access)"
-        echo "  2. Temporarily enable public access with your IP:"
+        echo "  2. Temporarily enable public access:"
         echo ""
-        echo "     az appconfig update --name $APPCONFIG_NAME --resource-group <RG> --enable-public-network true"
+        echo "     az appconfig update --name $APPCONFIG_NAME --resource-group $RESOURCE_GROUP --enable-public-network true"
+        echo ""
+        echo -e "${YELLOW}After seeding completes, re-secure App Configuration by disabling public access:${NC}"
+        echo ""
+        echo "     az appconfig update --name $APPCONFIG_NAME --resource-group $RESOURCE_GROUP --enable-public-network false"
         echo ""
     elif echo "$error_output" | grep -qi "Forbidden\|AuthorizationFailed\|not authorized\|does not have authorization"; then
         echo -e "${YELLOW}You need 'App Configuration Data Owner' role. Run:${NC}"
@@ -159,7 +171,7 @@ if ! error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --top 1 -o none 2>
         echo "      --role \"App Configuration Data Owner\" \\"
         echo "      --assignee-object-id \$(az ad signed-in-user show --query id -o tsv) \\"
         echo "      --assignee-principal-type User \\"
-        echo "      --scope \$(az appconfig show --name $APPCONFIG_NAME --query id -o tsv)"
+        echo "      --scope \$(az appconfig show --name $APPCONFIG_NAME --resource-group $RESOURCE_GROUP --query id -o tsv)"
         echo ""
         echo -e "${YELLOW}Wait 30-60 seconds after assigning, then re-run this script.${NC}"
     fi

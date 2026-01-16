@@ -37,6 +37,7 @@ NC='\033[0m' # No Color
 
 # Default values
 KEYVAULT_NAME=""
+RESOURCE_GROUP=""
 FORCE=false
 
 # Parse arguments
@@ -46,15 +47,20 @@ while [[ $# -gt 0 ]]; do
             KEYVAULT_NAME="$2"
             shift 2
             ;;
+        -g|--resource-group)
+            RESOURCE_GROUP="$2"
+            shift 2
+            ;;
         -f|--force)
             FORCE=true
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 -k <keyvault-name> [-f]"
+            echo "Usage: $0 -k <keyvault-name> -g <resource-group> [-f]"
             echo ""
             echo "Options:"
             echo "  -k, --keyvault-name   Name of the Key Vault (required)"
+            echo "  -g, --resource-group  Resource group name (required)"
             echo "  -f, --force           Overwrite existing secrets"
             echo "  -h, --help            Show this help message"
             exit 0
@@ -67,9 +73,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate required parameters
-if [[ -z "$KEYVAULT_NAME" ]]; then
-    echo -e "${RED}Error: --keyvault-name is required${NC}"
-    echo "Usage: $0 -k <keyvault-name> [-f]"
+missing_params=()
+[[ -z "$KEYVAULT_NAME" ]] && missing_params+=("--keyvault-name")
+[[ -z "$RESOURCE_GROUP" ]] && missing_params+=("--resource-group")
+
+if [[ ${#missing_params[@]} -gt 0 ]]; then
+    echo -e "${RED}Error: Missing required parameters: ${missing_params[*]}${NC}"
+    echo "Usage: $0 -k <keyvault-name> -g <resource-group> [-f]"
     exit 1
 fi
 
@@ -78,6 +88,7 @@ echo -e "${CYAN}QWiser Key Vault Secret Seeding${NC}"
 echo -e "${CYAN}======================================${NC}"
 echo ""
 echo "Key Vault: $KEYVAULT_NAME"
+echo "Resource Group: $RESOURCE_GROUP"
 echo "Force overwrite: $FORCE"
 echo ""
 
@@ -94,8 +105,13 @@ if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxr
         echo "  1. Use Azure Cloud Shell (has private endpoint access)"
         echo "  2. Temporarily enable public access with your IP:"
         echo ""
-        echo "     az keyvault update --name $KEYVAULT_NAME --resource-group <RG> --public-network-access Enabled"
-        echo "     az keyvault network-rule add --name $KEYVAULT_NAME --resource-group <RG> --ip-address \$(curl -s ifconfig.me)"
+        echo "     az keyvault update --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --public-network-access Enabled"
+        echo "     az keyvault network-rule add --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \$(curl -s ifconfig.me)"
+        echo ""
+        echo -e "${YELLOW}After seeding completes, re-secure the Key Vault by removing public access:${NC}"
+        echo ""
+        echo "     az keyvault network-rule remove --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \$(curl -s ifconfig.me)"
+        echo "     az keyvault update --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --public-network-access Disabled"
         echo ""
     elif echo "$error_output" | grep -qi "ForbiddenByRbac\|not authorized\|does not have authorization"; then
         echo -e "${YELLOW}You need 'Key Vault Secrets Officer' role. Run:${NC}"
@@ -104,7 +120,7 @@ if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxr
         echo "      --role \"Key Vault Secrets Officer\" \\"
         echo "      --assignee-object-id \$(az ad signed-in-user show --query id -o tsv) \\"
         echo "      --assignee-principal-type User \\"
-        echo "      --scope \$(az keyvault show --name $KEYVAULT_NAME --query id -o tsv)"
+        echo "      --scope \$(az keyvault show --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --query id -o tsv)"
         echo ""
         echo -e "${YELLOW}Wait 30-60 seconds after assigning, then re-run this script.${NC}"
     fi
