@@ -155,12 +155,9 @@ spec:
         - protocol: TCP
           port: 53
     # Kubernetes API server (required for ingress controller to watch resources)
-    # API server IP = first IP in serviceCidr (default: 10.100.0.0/16 -> 10.100.0.1)
-    # UPDATE THIS if you customized serviceCidr in Bicep parameters!
-    - to:
-        - ipBlock:
-            cidr: 10.100.0.1/32
-      ports:
+    # AKS API server is a managed service (not a pod), so we allow all egress on 443.
+    # This is required for the ingress controller to watch Ingress/Service resources.
+    - ports:
         - protocol: TCP
           port: 443
     # Forward to QWiser services in default namespace
@@ -172,7 +169,9 @@ spec:
         - protocol: TCP
           port: 8000  # public-api, internal-db, etc.
         - protocol: TCP
-          port: 80    # frontend
+          port: 80    # frontend (service port)
+        - protocol: TCP
+          port: 8080  # frontend (container port - network policies work at pod level)
 
 ---
 # =============================================================================
