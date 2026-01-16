@@ -144,13 +144,18 @@ set_key() {
 
     echo -e "  ${GRAY}[Setting] $key = $value${NC}"
 
-    az appconfig kv set \
+    local error_output
+    if ! error_output=$(az appconfig kv set \
         -n "$APPCONFIG_NAME" \
         --key "$key" \
         --value "$value" \
         --label "$LABEL" \
         --yes \
-        --only-show-errors
+        --only-show-errors 2>&1); then
+        echo -e "  ${RED}[ERROR]${NC} $key - Failed to set value"
+        echo -e "  ${RED}$error_output${NC}"
+        return 1
+    fi
 
     echo -e "  ${GREEN}[OK]${NC} $key"
 }
@@ -164,13 +169,18 @@ set_keyvault_ref() {
 
     echo -e "  ${GRAY}[Setting KV Ref] $key -> $secret_uri${NC}"
 
-    az appconfig kv set-keyvault \
+    local error_output
+    if ! error_output=$(az appconfig kv set-keyvault \
         -n "$APPCONFIG_NAME" \
         --key "$key" \
         --secret-identifier "$secret_uri" \
         --label "$LABEL" \
         --yes \
-        --only-show-errors
+        --only-show-errors 2>&1); then
+        echo -e "  ${RED}[ERROR]${NC} $key - Failed to set Key Vault reference"
+        echo -e "  ${RED}$error_output${NC}"
+        return 1
+    fi
 
     echo -e "  ${GREEN}[OK]${NC} $key"
 }

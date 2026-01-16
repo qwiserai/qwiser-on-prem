@@ -88,11 +88,16 @@ echo ""
 # Get pending connections
 echo -e "${GRAY}Fetching pending PE connections...${NC}"
 
-pending_connections=$(az network private-link-service show \
+error_output=""
+if ! pending_connections=$(az network private-link-service show \
     --resource-group "$RESOURCE_GROUP" \
     --name "$PLS_NAME" \
     --query "privateEndpointConnections[?privateLinkServiceConnectionState.status=='Pending'].name" \
-    -o tsv 2>/dev/null || echo "")
+    -o tsv 2>&1); then
+    echo -e "${RED}[ERROR] Failed to fetch Private Link Service${NC}"
+    echo -e "${RED}$pending_connections${NC}"
+    exit 1
+fi
 
 if [[ -z "$pending_connections" ]]; then
     echo -e "${YELLOW}No pending connections found.${NC}"
@@ -136,18 +141,20 @@ while IFS= read -r connection_name; do
 
     echo -e "${GRAY}[Approving] $connection_name${NC}"
 
-    if az network private-link-service connection update \
+    error_output=""
+    if ! error_output=$(az network private-link-service connection update \
         --resource-group "$RESOURCE_GROUP" \
         --name "$connection_name" \
         --service-name "$PLS_NAME" \
         --connection-status "Approved" \
         --description "Approved by post-deploy script" \
-        --output none 2>/dev/null; then
+        --output none 2>&1); then
+        echo -e "${RED}[FAILED]${NC} Failed to approve $connection_name"
+        echo -e "${RED}$error_output${NC}"
+        ((failed_count++)) || true
+    else
         echo -e "${GREEN}[OK]${NC} $connection_name approved"
         ((approved_count++)) || true
-    else
-        echo -e "${RED}[FAILED]${NC} Failed to approve $connection_name"
-        ((failed_count++)) || true
     fi
 done <<< "$pending_connections"
 

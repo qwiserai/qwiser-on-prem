@@ -118,11 +118,16 @@ set_secret() {
 
     echo -e "  ${GRAY}[$action] $secret_name - $description${NC}"
 
-    az keyvault secret set \
+    local error_output
+    if ! error_output=$(az keyvault secret set \
         --vault-name "$vault_name" \
         --name "$secret_name" \
         --value "$secret_value" \
-        --output none
+        --output none 2>&1); then
+        echo -e "  ${RED}[ERROR]${NC} $secret_name - Failed to set secret"
+        echo -e "  ${RED}$error_output${NC}"
+        return 1
+    fi
 
     echo -e "  ${GREEN}[OK]${NC} $secret_name"
 }
