@@ -40,7 +40,6 @@ metadata:
     app: frontend
     app.kubernetes.io/name: qwiser
     app.kubernetes.io/component: frontend
-    app.kubernetes.io/part-of: qwiser-university
 spec:
   type: ClusterIP
   ports:
@@ -61,7 +60,6 @@ metadata:
     app: frontend
     app.kubernetes.io/name: qwiser
     app.kubernetes.io/component: frontend
-    app.kubernetes.io/part-of: qwiser-university
 spec:
   replicas: 2
   selector:
@@ -73,7 +71,6 @@ spec:
         app: frontend
         app.kubernetes.io/name: qwiser
         app.kubernetes.io/component: frontend
-        app.kubernetes.io/part-of: qwiser-university
         azure.workload.identity/use: "true"
     spec:
       serviceAccountName: sa-qwiser

@@ -16,7 +16,6 @@ metadata:
     app: public-api
     app.kubernetes.io/name: qwiser
     app.kubernetes.io/component: public-api
-    app.kubernetes.io/part-of: qwiser-university
 spec:
   replicas: 2
   selector:

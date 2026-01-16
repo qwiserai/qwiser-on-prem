@@ -29,7 +29,6 @@ metadata:
   name: public-api-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: public-api
 spec:
   minAvailable: 1
@@ -44,7 +43,6 @@ metadata:
   name: frontend-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: frontend
 spec:
   minAvailable: 1
@@ -63,7 +61,6 @@ metadata:
   name: internal-db-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: internal-db
 spec:
   minAvailable: 1
@@ -78,7 +75,6 @@ metadata:
   name: other-generation-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: other-generation
 spec:
   minAvailable: 1
@@ -93,7 +89,6 @@ metadata:
   name: text-loading-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: text-loading
 spec:
   minAvailable: 1
@@ -108,7 +103,6 @@ metadata:
   name: smart-quiz-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: smart-quiz
 spec:
   minAvailable: 1
@@ -130,7 +124,6 @@ metadata:
   name: topic-modeling-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: topic-modeling
 spec:
   # Allow disruption of at most 1 pod at a time
@@ -154,7 +147,6 @@ metadata:
   name: embeddings-worker-msgs-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: embeddings-worker
 spec:
   # Critical service - must always have the 1 replica available
@@ -171,7 +163,6 @@ metadata:
   name: embeddings-worker-hybrid-pdb
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: embeddings-worker
 spec:
   # Allow disruption of at most 1 pod at a time

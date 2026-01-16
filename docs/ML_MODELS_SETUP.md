@@ -97,7 +97,7 @@ du -sh ./ml-models/*
 ```bash
 # From deployment outputs
 STORAGE_ACCOUNT=$(az deployment sub show \
-    --name qwiser-university-YYYYMMDD-HHMMSS \
+    --name qwiser-on-prem-YYYYMMDD-HHMMSS \
     --query "properties.outputs.storageAccountName.value" -o tsv)
 
 RESOURCE_GROUP="qwiser-prod-rg"

@@ -566,7 +566,7 @@ If issues persist:
 1. Collect diagnostic logs:
    ```bash
    az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-       --command "kubectl logs --all-containers -l app.kubernetes.io/part-of=qwiser-university"
+       --command "kubectl logs --all-containers -l app.kubernetes.io/part-of=qwiser-on-prem"
    ```
 2. Check Azure resource health in Portal
 3. Contact QWiser support with deployment outputs and logs

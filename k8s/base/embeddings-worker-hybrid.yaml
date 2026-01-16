@@ -32,7 +32,6 @@ metadata:
     app: embeddings-worker-hybrid
     app.kubernetes.io/name: qwiser
     app.kubernetes.io/component: embeddings-worker
-    app.kubernetes.io/part-of: qwiser-university
 spec:
   # Controlled by KEDA ScaledObject (min=0, max=3)
   replicas: 0
@@ -45,7 +44,6 @@ spec:
         app: embeddings-worker-hybrid
         app.kubernetes.io/name: qwiser
         app.kubernetes.io/component: embeddings-worker
-        app.kubernetes.io/part-of: qwiser-university
         azure.workload.identity/use: "true"
         # REQUIRED: Allows network policy to permit Qdrant access
         qwiser.io/qdrant-access: "true"
@@ -176,7 +174,6 @@ metadata:
   name: embeddings-worker-hybrid-scaledobject
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: embeddings-worker
 spec:
   scaleTargetRef:

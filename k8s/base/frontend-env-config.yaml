@@ -26,7 +26,6 @@ metadata:
     app: frontend
     app.kubernetes.io/name: qwiser
     app.kubernetes.io/component: frontend-config
-    app.kubernetes.io/part-of: qwiser-university
 data:
   env-config.js: |
     // Runtime configuration - injected by K8s ConfigMap

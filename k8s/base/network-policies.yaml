@@ -56,7 +56,6 @@ metadata:
   name: default-deny-all
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector: {}  # Applies to all pods in namespace
@@ -81,12 +80,10 @@ metadata:
   name: qwiser-common-egress
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/part-of: qwiser-university
   policyTypes:
     - Egress
   egress:
@@ -127,7 +124,6 @@ metadata:
   name: allow-nginx-ingress
   namespace: ingress-nginx
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -182,7 +178,6 @@ metadata:
   name: public-api-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -265,7 +260,6 @@ metadata:
   name: internal-db-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -337,7 +331,6 @@ metadata:
   name: other-generation-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -377,7 +370,6 @@ metadata:
   name: text-loading-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -417,7 +409,6 @@ metadata:
   name: topic-modeling-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -457,7 +448,6 @@ metadata:
   name: smart-quiz-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -505,7 +495,6 @@ metadata:
   name: frontend-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -552,7 +541,6 @@ metadata:
   name: embeddings-worker-msgs-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -585,7 +573,6 @@ metadata:
   name: embeddings-worker-hybrid-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -636,7 +623,6 @@ metadata:
   name: cronjobs-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -686,7 +672,6 @@ metadata:
   name: qdrant-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:
@@ -735,7 +720,6 @@ metadata:
   name: secrets-sync-trigger-policy
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: network-security
 spec:
   podSelector:

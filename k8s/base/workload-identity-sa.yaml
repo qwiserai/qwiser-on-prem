@@ -21,6 +21,5 @@ metadata:
   name: sa-qwiser
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
   annotations:
     azure.workload.identity/client-id: REPLACE_WITH_UAMI_CLIENT_ID

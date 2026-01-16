@@ -16,7 +16,6 @@ metadata:
     app: other-generation
     app.kubernetes.io/name: qwiser
     app.kubernetes.io/component: other-generation
-    app.kubernetes.io/part-of: qwiser-university
 spec:
   replicas: 2
   selector:

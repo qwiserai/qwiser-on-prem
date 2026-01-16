@@ -59,7 +59,6 @@ kind: PersistentVolume
 metadata:
   name: ml-models-pv
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: storage
 spec:
   capacity:
@@ -103,7 +102,6 @@ metadata:
   name: ml-models-pvc
   namespace: default
   labels:
-    app.kubernetes.io/part-of: qwiser-university
     app.kubernetes.io/component: storage
 spec:
   accessModes:

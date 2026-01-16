@@ -19,7 +19,6 @@ metadata:
     app: smart-quiz
     app.kubernetes.io/name: qwiser
     app.kubernetes.io/component: smart-quiz
-    app.kubernetes.io/part-of: qwiser-university
 spec:
   replicas: 2
   selector:
