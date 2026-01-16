@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "511996495537748036"
+      "templateHash": "18324722913773967895"
     }
   },
   "parameters": {
@@ -2721,7 +2721,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "464682278992025381"
+              "templateHash": "257761778441539477"
             }
           },
           "parameters": {
@@ -2873,7 +2873,7 @@
           "variables": {
             "aksClusterName": "[format('{0}-aks', parameters('namingPrefix'))]",
             "acrPullRoleId": "7f951dda-4ed3-4680-a7ca-43fe172d538d",
-            "aksClusterAdminRoleId": "0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8"
+            "contributorRoleId": "b24988ac-6180-42a0-ab88-20f7382dd24c"
           },
           "resources": [
             {
@@ -2997,12 +2997,12 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[format('Microsoft.ContainerService/managedClusters/{0}', variables('aksClusterName'))]",
-              "name": "[guid(resourceId('Microsoft.ContainerService/managedClusters', variables('aksClusterName')), parameters('managedIdentityPrincipalId'), variables('aksClusterAdminRoleId'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerService/managedClusters', variables('aksClusterName')), parameters('managedIdentityPrincipalId'), variables('contributorRoleId'))]",
               "properties": {
                 "principalId": "[parameters('managedIdentityPrincipalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('aksClusterAdminRoleId'))]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('contributorRoleId'))]",
                 "principalType": "ServicePrincipal",
-                "description": "Allow managed identity to run az aks command invoke for deploymentScript"
+                "description": "Allow managed identity to run az aks command invoke (requires runCommand + commandResults/read)"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.ContainerService/managedClusters', variables('aksClusterName'))]"

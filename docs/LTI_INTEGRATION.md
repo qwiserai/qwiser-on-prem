@@ -96,12 +96,12 @@ LTI 1.3 Dynamic Registration automates most of the configuration. This is the pr
 Add the platform configuration to Azure App Configuration:
 
 ```
-lti:platform:issuer         = https://moodle.university.edu
-lti:platform:client-id      = <from registration>
-lti:platform:deployment-id  = <from registration>
-lti:platform:oidc-auth-url  = https://moodle.university.edu/mod/lti/auth.php
-lti:platform:jwks-url       = https://moodle.university.edu/mod/lti/certs.php
-lti:platform:token-url      = https://moodle.university.edu/mod/lti/token.php
+lti:platform:issuer          = https://moodle.university.edu
+lti:platform:client_id       = <from registration>
+lti:platform:deployment_id   = <from registration>
+lti:platform:oidc_auth_url   = https://moodle.university.edu/mod/lti/auth.php
+lti:platform:jwks_url        = https://moodle.university.edu/mod/lti/certs.php
+lti:platform:oauth_token_url = https://moodle.university.edu/mod/lti/token.php
 ```
 
 **Important:** After updating App Configuration, restart the `public-api` pods:
@@ -142,11 +142,11 @@ After saving, Moodle displays platform details. Note:
 | Field | App Config Key |
 |-------|----------------|
 | Platform ID | `lti:platform:issuer` |
-| Client ID | `lti:platform:client-id` |
-| Deployment ID | `lti:platform:deployment-id` |
-| Public keyset URL | `lti:platform:jwks-url` |
-| Access token URL | `lti:platform:token-url` |
-| Authentication request URL | `lti:platform:oidc-auth-url` |
+| Client ID | `lti:platform:client_id` |
+| Deployment ID | `lti:platform:deployment_id` |
+| Public keyset URL | `lti:platform:jwks_url` |
+| Access token URL | `lti:platform:oauth_token_url` |
+| Authentication request URL | `lti:platform:oidc_auth_url` |
 
 ### Step 3: Configure QWiser
 
@@ -302,11 +302,11 @@ Complete list of LTI-related configuration keys:
 | Key | Description | Example |
 |-----|-------------|---------|
 | `lti:platform:issuer` | LMS platform identifier | `https://moodle.university.edu` |
-| `lti:platform:client-id` | OAuth client ID from LMS | `abc123xyz` |
-| `lti:platform:deployment-id` | Deployment ID from LMS | `1` |
-| `lti:platform:oidc-auth-url` | OIDC authorization endpoint | `https://moodle.university.edu/mod/lti/auth.php` |
-| `lti:platform:jwks-url` | LMS public keys endpoint | `https://moodle.university.edu/mod/lti/certs.php` |
-| `lti:platform:token-url` | Token endpoint (for services) | `https://moodle.university.edu/mod/lti/token.php` |
+| `lti:platform:client_id` | OAuth client ID from LMS | `abc123xyz` |
+| `lti:platform:deployment_id` | Deployment ID from LMS | `1` |
+| `lti:platform:oidc_auth_url` | OIDC authorization endpoint | `https://moodle.university.edu/mod/lti/auth.php` |
+| `lti:platform:jwks_url` | LMS public keys endpoint | `https://moodle.university.edu/mod/lti/certs.php` |
+| `lti:platform:oauth_token_url` | Token endpoint (for services) | `https://moodle.university.edu/mod/lti/token.php` |
 
 ---
 

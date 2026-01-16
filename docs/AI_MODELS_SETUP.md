@@ -157,6 +157,8 @@ echo "Endpoint: $ENDPOINT"
 echo "API Key: ${API_KEY:0:8}..."
 ```
 
+> **Note**: The endpoint URL from Azure includes a trailing slash (e.g., `https://resource.openai.azure.com/`). The commands in Step 5 expect this format. If you're manually constructing URLs, ensure the trailing slash is present.
+
 ---
 
 ## Step 4: Update Key Vault

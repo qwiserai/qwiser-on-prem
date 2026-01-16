@@ -264,23 +264,35 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
 }
 
 // ============================================================================
-// Azure Kubernetes Service Cluster Admin Role Assignment
+// Contributor Role Assignment for AKS Command Invoke
 // ============================================================================
 // Required for deploymentScript to run `az aks command invoke`
-// This role allows executing commands on the cluster via the control plane
+//
+// IMPORTANT: The built-in "Azure Kubernetes Service Cluster Admin Role" does NOT
+// include the `Microsoft.ContainerService/managedClusters/commandResults/read`
+// permission required to retrieve command results. This is a known Azure issue:
+// https://github.com/Azure/AKS/issues/3462
+//
+// `az aks command invoke` requires BOTH:
+//   - Microsoft.ContainerService/managedClusters/runCommand/action
+//   - Microsoft.ContainerService/managedClusters/commandResults/read
+//
+// Solution: Use Contributor role scoped ONLY to the AKS cluster resource.
+// This is minimal privilege for the specific resource while providing all
+// required permissions.
 // ============================================================================
 
-// Built-in role: Azure Kubernetes Service Cluster Admin Role (0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8)
-var aksClusterAdminRoleId = '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8'
+// Built-in role: Contributor (b24988ac-6180-42a0-ab88-20f7382dd24c)
+var contributorRoleId = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 
-resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aksCluster.id, managedIdentityPrincipalId, aksClusterAdminRoleId)
+resource aksContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aksCluster.id, managedIdentityPrincipalId, contributorRoleId)
   scope: aksCluster
   properties: {
     principalId: managedIdentityPrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', aksClusterAdminRoleId)
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', contributorRoleId)
     principalType: 'ServicePrincipal'
-    description: 'Allow managed identity to run az aks command invoke for deploymentScript'
+    description: 'Allow managed identity to run az aks command invoke (requires runCommand + commandResults/read)'
   }
 }
 
