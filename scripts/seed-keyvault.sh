@@ -85,7 +85,21 @@ echo ""
 secret_exists() {
     local vault_name=$1
     local secret_name=$2
-    az keyvault secret show --vault-name "$vault_name" --name "$secret_name" --query "name" -o tsv 2>/dev/null
+    local error_output
+
+    if ! error_output=$(az keyvault secret show --vault-name "$vault_name" --name "$secret_name" --query "name" -o tsv 2>&1); then
+        # Check if it's a "not found" error (expected) vs other errors (network, auth, etc.)
+        if echo "$error_output" | grep -qi "SecretNotFound\|not found"; then
+            echo ""  # Secret doesn't exist, return empty
+            return 0
+        else
+            # Real error - print it and exit
+            echo -e "${RED}[ERROR] Failed to check secret '$secret_name':${NC}" >&2
+            echo -e "${RED}$error_output${NC}" >&2
+            return 1
+        fi
+    fi
+    echo "$error_output"  # Secret exists, return its name
 }
 
 # Function to generate cryptographically secure random string (hex)
