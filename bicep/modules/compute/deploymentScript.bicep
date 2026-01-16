@@ -189,12 +189,17 @@ resource nginxInstallScript 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       # Wait for RBAC role assignment to propagate
       # Azure RBAC propagation is eventually consistent and can take 10+ minutes for new AKS clusters
       echo "Waiting for RBAC permissions to propagate..."
-      echo "Initial wait of 120 seconds for RBAC propagation..."
-      sleep 120
+      echo "Initial wait of 30 seconds for RBAC propagation..."
+      sleep 30
 
       RBAC_READY=false
       for i in {1..60}; do
         echo "Testing RBAC permissions (attempt $i/60)..."
+
+        # Force token refresh - critical! Cached tokens don't pick up new role assignments
+        echo "Refreshing credentials (clearing cache and re-authenticating)..."
+        az account clear 2>/dev/null || true
+        az login --identity --username "$UAMI_CLIENT_ID" --allow-no-subscriptions -o none
 
         # Test the actual permission we need: command invoke + reading results
         RBAC_OUTPUT=$(az aks command invoke \
