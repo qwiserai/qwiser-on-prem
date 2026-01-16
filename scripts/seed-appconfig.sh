@@ -166,7 +166,7 @@ if [[ $exit_code -ne 0 ]]; then
     echo ""
     
     # Check network access first - "Forbidden" with public access disabled = network issue, not RBAC
-    if [[ "${public_access,,}" == "disabled" ]] || echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
+    if echo "$public_access" | grep -qi "disabled" || echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
         echo -e "${YELLOW}App Configuration has public network access disabled (private endpoint only).${NC}"
         echo ""
         echo "Options:"
