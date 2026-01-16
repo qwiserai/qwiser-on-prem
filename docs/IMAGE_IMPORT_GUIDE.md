@@ -25,36 +25,23 @@ QWiser container images must be imported from QWiser's Azure Container Registry 
 
 See [VERSIONS.txt](../VERSIONS.txt) for the current release. The images are:
 
-| Image | Purpose |
-|-------|---------|
-| `qwiser/public-api` | API Gateway, authentication, ID masking |
-| `qwiser/internal-db` | Database API layer |
-| `qwiser/text-loading` | Content ingestion (PDFs, YouTube, etc.) |
-| `qwiser/other-generation` | AI content generation |
-| `qwiser/topic-modeling` | Knowledge tree coordinator |
-| `qwiser/smart-quiz` | Quiz and exam engine |
+| Image                      | Purpose                                    |
+| -------------------------- | ------------------------------------------ |
+| `qwiser/public-api`        | API Gateway, authentication, ID masking    |
+| `qwiser/internal-db`       | Database API layer                         |
+| `qwiser/text-loading`      | Content ingestion (PDFs, YouTube, etc.)    |
+| `qwiser/other-generation`  | AI content generation                      |
+| `qwiser/topic-modeling`    | Knowledge tree coordinator                 |
+| `qwiser/smart-quiz`        | Quiz and exam engine                       |
 | `qwiser/embeddings-worker` | GPU/CPU embeddings (largest image, ~2.5GB) |
-| `qwiser/frontend` | React web application |
-| `qwiser/cronjobs` | Scheduled maintenance tasks |
+| `qwiser/frontend`          | React web application                      |
+| `qwiser/cronjobs`          | Scheduled maintenance tasks                |
 
 ---
 
 ## Import Process
 
-### Step 1: Get Your ACR Name
-
-Find your ACR name from the Bicep deployment output:
-
-```bash
-# From deployment output
-ACR_NAME=$(az deployment sub show \
-    --name qwiser-university-YYYYMMDD-HHMMSS \
-    --query "properties.outputs.acrLoginServer.value" -o tsv | cut -d'.' -f1 | tr -d '\r')
-
-echo "Your ACR: $ACR_NAME"
-```
-
-Or find it in the Azure Portal under your resource group.
+### Step 1: Get Your ACR Name (See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md))
 
 ### Step 2: Run the Import Script
 
@@ -68,10 +55,10 @@ cd scripts
 # Option A: Using environment variables
 export QWISER_ACR_USERNAME="customer-youruni-pull"
 export QWISER_ACR_PASSWORD="<provided-by-qwiser>"
-./import-images.sh --target-acr $ACR_NAME
+./scripts/import-images.sh --target-acr $ACR_NAME
 
 # Option B: Using command line arguments
-./import-images.sh \
+./scripts/import-images.sh \
     --source-user "customer-youruni-pull" \
     --source-password "<provided-by-qwiser>" \
     --target-acr $ACR_NAME
@@ -97,7 +84,7 @@ $env:QWISER_ACR_PASSWORD = "<provided-by-qwiser>"
 **Dry run (see what would happen without importing):**
 
 ```bash
-./import-images.sh --target-acr $ACR_NAME --dry-run
+./scripts/import-images.sh --target-acr $ACR_NAME --dry-run
 ```
 
 ### Step 3: Verify Import
@@ -131,17 +118,34 @@ az acr repository show-tags --name $ACR_NAME --repository qwiser/public-api -o t
 
 ## Verify AKS Can Pull Images
 
-The Bicep deployment automatically attaches AKS to ACR. Verify with a test pull:
+After connecting to AKS (see [DEPLOYMENT_GUIDE.md Phase 5](./DEPLOYMENT_GUIDE.md#phase-5-connect-to-aks)), verify AKS can pull from your ACR.
 
+**Option A: Direct kubectl** (if you have VPN/network access to private AKS):
+```bash
+kubectl run test-pull --image=$ACR_NAME.azurecr.io/qwiser/public-api:v0.0.2 --restart=Never --command -- sleep 10
+kubectl get pod test-pull  # Should be Running, not ImagePullBackOff
+kubectl delete pod test-pull
+```
+
+**Option B: Via `az aks command invoke`** (for private AKS without VPN):
 ```bash
 # Test pull
-kubectl run test-pull --image=$ACR_NAME.azurecr.io/qwiser/public-api:v1.0.0 --command -- sleep 10
+az aks command invoke \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_NAME \
+    --command "kubectl run test-pull --image=$ACR_NAME.azurecr.io/qwiser/public-api:v0.0.2 --restart=Never --command -- sleep 10"
 
 # Check pod status (should be Running, not ImagePullBackOff)
-kubectl get pod test-pull
+az aks command invoke \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_NAME \
+    --command "kubectl get pod test-pull"
 
 # Cleanup
-kubectl delete pod test-pull
+az aks command invoke \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_NAME \
+    --command "kubectl delete pod test-pull"
 ```
 
 If pull fails with `ImagePullBackOff`:
@@ -149,8 +153,8 @@ If pull fails with `ImagePullBackOff`:
 ```bash
 # Verify ACR attachment
 az aks check-acr \
-    --resource-group <your-resource-group> \
-    --name <your-aks-name> \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_NAME \
     --acr $ACR_NAME.azurecr.io
 ```
 
@@ -170,6 +174,17 @@ image: youruni-acr.azurecr.io/qwiser/public-api:v1.0.0
 
 Image versions are centralized in `k8s/base/kustomization.yaml` under the `images:` section.
 
+To apply manifests with image substitution:
+```bash
+cd k8s/base
+
+# For private AKS (recommended):
+./apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
+
+# Or with direct kubectl access (requires VPN):
+./apply.sh
+```
+
 ---
 
 ## Updating to a New Version
@@ -183,7 +198,7 @@ QWiser will provide an updated `VERSIONS.txt` with new tags.
 ### Step 2: Re-run Import Script
 
 ```bash
-./import-images.sh --target-acr $ACR_NAME
+./scripts/import-images.sh --target-acr $ACR_NAME
 ```
 
 The `--force` flag (used internally) overwrites existing tags if they exist.
@@ -203,12 +218,22 @@ images:
 
 ```bash
 cd k8s/base
+
+# For private AKS:
+./apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
+
+# Or with direct kubectl access:
 ./apply.sh
 ```
 
 Or trigger a rolling update for specific services:
 
 ```bash
+# Via az aks command invoke:
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl rollout restart deployment/public-api -n qwiser"
+
+# Or with direct kubectl:
 kubectl rollout restart deployment/public-api -n qwiser
 ```
 
@@ -216,12 +241,12 @@ kubectl rollout restart deployment/public-api -n qwiser
 
 ## Troubleshooting
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| `401 Unauthorized` | Invalid or expired credentials | Contact QWiser for new credentials |
-| `404 Not Found` | Image or tag doesn't exist | Verify VERSIONS.txt matches available images |
-| `ImagePullBackOff` in K8s | ACR not attached to AKS | Run `az aks check-acr` |
-| Slow import | Large images (embeddings-worker is ~2.5GB) | Wait patiently, or use dedicated bandwidth |
+| Issue                     | Cause                                      | Solution                                     |
+| ------------------------- | ------------------------------------------ | -------------------------------------------- |
+| `401 Unauthorized`        | Invalid or expired credentials             | Contact QWiser for new credentials           |
+| `404 Not Found`           | Image or tag doesn't exist                 | Verify VERSIONS.txt matches available images |
+| `ImagePullBackOff` in K8s | ACR not attached to AKS                    | Run `az aks check-acr`                       |
+| Slow import               | Large images (embeddings-worker is ~2.5GB) | Wait patiently, or use dedicated bandwidth   |
 
 ### View Import Logs
 

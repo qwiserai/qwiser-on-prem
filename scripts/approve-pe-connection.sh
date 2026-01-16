@@ -161,7 +161,11 @@ done <<< "$pending_connections"
 # Summary
 echo ""
 echo -e "${CYAN}======================================${NC}"
-echo -e "${GREEN}PE Connection Approval Complete${NC}"
+if [[ $failed_count -gt 0 ]]; then
+    echo -e "${RED}PE Connection Approval Failed${NC}"
+else
+    echo -e "${GREEN}PE Connection Approval Complete${NC}"
+fi
 echo -e "${CYAN}======================================${NC}"
 echo ""
 
@@ -174,6 +178,27 @@ az network private-link-service show \
     -o table
 
 echo ""
+
+if [[ $failed_count -gt 0 ]]; then
+    echo -e "${YELLOW}This is usually a timing issue - the connection needs a few minutes after deployment.${NC}"
+    echo ""
+    echo "Wait 2-3 minutes, then retry with this command:"
+    echo ""
+    # Get the first pending connection name for the example
+    first_pending=$(echo "$pending_connections" | head -1)
+    echo "  az network private-link-service connection update \\"
+    echo "      --resource-group $RESOURCE_GROUP \\"
+    echo "      --service-name $PLS_NAME \\"
+    echo "      --name \"$first_pending\" \\"
+    echo "      --connection-status Approved"
+    echo ""
+    echo "Or re-run this script:"
+    echo ""
+    echo "  ./scripts/approve-pe-connection.sh -g $RESOURCE_GROUP -p $PLS_NAME"
+    echo ""
+    exit 1
+fi
+
 echo "Next steps:"
 echo -e "  ${GRAY}1. Verify Front Door health probes are passing${NC}"
 echo -e "  ${GRAY}2. Test connectivity through Front Door endpoint${NC}"

@@ -129,6 +129,10 @@ IMAGES=()
 while IFS= read -r line; do
     # Skip comments and empty lines
     [[ "$line" =~ ^#.*$ ]] && continue
+    [[ -z "${line// /}" ]] && continue  # Skip empty or whitespace-only lines
+    # Trim whitespace
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
     [[ -z "$line" ]] && continue
     IMAGES+=("$line")
 done < "$VERSIONS_FILE"
@@ -177,39 +181,128 @@ fi
 print_success "Target ACR verified: $TARGET_ACR"
 echo ""
 
-# Import images
-FAILED=()
-SUCCEEDED=()
+# Import images in parallel
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
 
-for img in "${IMAGES[@]}"; do
-    print_info "Importing $img..."
-
-    if az acr import \
+# Function to import a single image (runs in background)
+import_image() {
+    local img=$1
+    local result_file="$TEMP_DIR/$(echo "$img" | tr '/:' '__')"
+    
+    if error_output=$(az acr import \
         --name "$TARGET_ACR" \
         --source "$SOURCE_REGISTRY/$img" \
         --image "$img" \
         --username "$SOURCE_USER" \
         --password "$SOURCE_PASSWORD" \
-        --force 2>&1; then
-        print_success "  Imported: $img"
-        SUCCEEDED+=("$img")
+        --force 2>&1); then
+        echo "OK" > "$result_file.status"
     else
-        print_error "  Failed: $img"
-        FAILED+=("$img")
+        echo "FAILED" > "$result_file.status"
+        echo "$error_output" > "$result_file.error"
     fi
-    echo ""
+}
+
+export -f import_image
+export TARGET_ACR SOURCE_REGISTRY SOURCE_USER SOURCE_PASSWORD TEMP_DIR
+
+echo "Importing ${#IMAGES[@]} images in parallel..."
+echo ""
+
+# Start all imports in parallel
+PIDS=()
+for img in "${IMAGES[@]}"; do
+    import_image "$img" &
+    PIDS+=($!)
+    echo "  Started: $img"
+done
+
+echo ""
+echo "Waiting for imports to complete..."
+
+# Wait for all background jobs
+for pid in "${PIDS[@]}"; do
+    wait "$pid" 2>/dev/null || true
+done
+
+echo ""
+
+# Collect results
+FAILED=()
+SUCCEEDED=()
+declare -A FAILED_ERRORS
+
+for img in "${IMAGES[@]}"; do
+    result_file="$TEMP_DIR/$(echo "$img" | tr '/:' '__')"
+    
+    if [[ -f "$result_file.status" ]]; then
+        status=$(cat "$result_file.status")
+        if [[ "$status" == "OK" ]]; then
+            echo -e "  ${GREEN}OK${NC}      $img"
+            SUCCEEDED+=("$img")
+        else
+            echo -e "  ${RED}FAILED${NC}  $img"
+            FAILED+=("$img")
+            if [[ -f "$result_file.error" ]]; then
+                FAILED_ERRORS["$img"]=$(cat "$result_file.error")
+            fi
+        fi
+    else
+        echo -e "  ${RED}FAILED${NC}  $img (no result)"
+        FAILED+=("$img")
+        FAILED_ERRORS["$img"]="Import process did not complete"
+    fi
 done
 
 # Summary
+echo ""
 echo "=============================================="
 echo "Import Summary"
 echo "=============================================="
 print_success "Succeeded: ${#SUCCEEDED[@]}"
+
 if [[ ${#FAILED[@]} -gt 0 ]]; then
     print_error "Failed: ${#FAILED[@]}"
+    echo ""
+    
     for img in "${FAILED[@]}"; do
-        echo "  - $img"
+        echo -e "${RED}$img${NC}"
+        echo "${FAILED_ERRORS[$img]}" | head -5
+        echo ""
     done
+    
+    # Provide troubleshooting guidance based on error patterns
+    all_errors=$(printf '%s\n' "${FAILED_ERRORS[@]}")
+    
+    if echo "$all_errors" | grep -qi "InvalidImportImageParameter\|SourceImage"; then
+        echo -e "${YELLOW}Troubleshooting: Invalid image parameter${NC}"
+        echo ""
+        echo "This usually means:"
+        echo "  1. The image doesn't exist in the source registry"
+        echo "  2. The credentials don't have access to the image"
+        echo ""
+        echo "Verify the image exists and credentials are correct:"
+        echo "  docker login $SOURCE_REGISTRY -u \$QWISER_ACR_USERNAME -p \$QWISER_ACR_PASSWORD"
+        echo "  docker pull $SOURCE_REGISTRY/<image-name>"
+        echo ""
+        echo "Contact QWiser support if the issue persists."
+    elif echo "$all_errors" | grep -qi "Unauthorized\|authentication\|401"; then
+        echo -e "${YELLOW}Troubleshooting: Authentication failed${NC}"
+        echo ""
+        echo "The QWiser ACR credentials are invalid or expired."
+        echo "Contact QWiser to get updated credentials."
+    elif echo "$all_errors" | grep -qi "Forbidden\|403"; then
+        echo -e "${YELLOW}Troubleshooting: Access denied${NC}"
+        echo ""
+        echo "You need 'AcrPush' role on the target ACR. Run:"
+        echo ""
+        echo "  az role assignment create \\"
+        echo "      --role AcrPush \\"
+        echo "      --assignee-object-id \$(az ad signed-in-user show --query id -o tsv) \\"
+        echo "      --scope \$(az acr show --name $TARGET_ACR --query id -o tsv)"
+    fi
+    echo ""
     exit 1
 fi
 

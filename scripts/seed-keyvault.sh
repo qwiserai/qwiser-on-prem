@@ -94,26 +94,38 @@ echo ""
 
 # Pre-flight check: verify Key Vault access
 echo -e "${GRAY}Checking Key Vault access...${NC}"
-if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxresults 1 -o none 2>&1); then
+
+# First check if public network access is disabled (management plane works even when data plane is blocked)
+public_access=$(az keyvault show --name "$KEYVAULT_NAME" --resource-group "$RESOURCE_GROUP" --query "properties.publicNetworkAccess" -o tsv 2>/dev/null || echo "unknown")
+
+set +e
+error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxresults 1 -o none 2>&1)
+exit_code=$?
+set -e
+
+if [[ $exit_code -ne 0 ]]; then
+    echo ""
     echo -e "${RED}[ERROR] Cannot access Key Vault '$KEYVAULT_NAME'${NC}"
+    echo ""
+    echo -e "${GRAY}Azure CLI output:${NC}"
     echo -e "${RED}$error_output${NC}"
     echo ""
-    if echo "$error_output" | grep -qi "ForbiddenByConnection\|Public network access is disabled\|private link"; then
+    
+    # Check network access first - "Forbidden" with public access disabled = network issue, not RBAC
+    if echo "$public_access" | grep -qi "disabled" || echo "$error_output" | grep -qi "ForbiddenByConnection\|Public network access is disabled\|private link"; then
         echo -e "${YELLOW}Key Vault has public network access disabled (private endpoint only).${NC}"
         echo ""
         echo "Options:"
         echo "  1. Use Azure Cloud Shell (has private endpoint access)"
-        echo "  2. Temporarily enable public access with your IP:"
+        echo "  2. Temporarily enable public access:"
         echo ""
         echo "     az keyvault update --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --public-network-access Enabled"
-        echo "     az keyvault network-rule add --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \<your-ip-address>"
         echo ""
-        echo -e "${YELLOW}After seeding completes, re-secure the Key Vault by removing public access:${NC}"
+        echo -e "${YELLOW}After seeding completes, re-secure the Key Vault:${NC}"
         echo ""
-        echo "     az keyvault network-rule remove --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --ip-address \<your-ip-address>"
         echo "     az keyvault update --name $KEYVAULT_NAME --resource-group $RESOURCE_GROUP --public-network-access Disabled"
         echo ""
-    elif echo "$error_output" | grep -qi "ForbiddenByRbac\|not authorized\|does not have authorization"; then
+    elif echo "$error_output" | grep -qi "ForbiddenByRbac\|Forbidden\|not authorized\|does not have authorization"; then
         echo -e "${YELLOW}You need 'Key Vault Secrets Officer' role. Run:${NC}"
         echo ""
         echo "  az role assignment create \\"
@@ -127,6 +139,8 @@ if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxr
         echo "  az keyvault secret list --vault-name $KEYVAULT_NAME --maxresults 1 -o table"
         echo ""
     fi
+    echo ""
+    echo -e "${RED}[FAILED] Key Vault seeding failed${NC}"
     exit 1
 fi
 echo -e "${GREEN}[OK]${NC} Key Vault access verified"
