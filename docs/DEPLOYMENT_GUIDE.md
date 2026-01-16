@@ -133,7 +133,7 @@ STORAGE_ACCOUNT=$(jq -r '.storageAccountName.value' deployment-outputs.json)
 
 ## Phase 3: AI Models Setup
 
-Deploy AI models in Azure AI Foundry. See [AI_MODELS_SETUP.md](./AI_MODELS_SETUP.md) for detailed instructions.
+Deploy AI models in Azure AI Foundry
 
 ### Required Models
 
@@ -191,12 +191,15 @@ az keyvault secret set \
 
 Download HuggingFace models and mount to Azure Files. See [ML_MODELS_SETUP.md](./ML_MODELS_SETUP.md) for detailed instructions.
 
+> **Note**: You can skip this step if you are not using the ML models (chat functionality). The guide is **STILL UNTESTED** and is provided as a scaffold for future reference. QWiser is expected to migrate to an Azure AI Search based chat functionality which will not require the ML models.
+
 ### Required Models
 
-| Model                                  | Size    | Purpose                   |
-| -------------------------------------- | ------- | ------------------------- |
-| BAAI/bge-large-en-v1.5                 | ~1.3 GB | FastEmbed text embeddings |
-| sentence-transformers/all-MiniLM-L6-v2 | ~90 MB  | Sentence similarity       |
+| Model                                  |
+| -------------------------------------- |
+| philipchung/bge-m3-onnx                |
+| sentence-transformers/all-MiniLM-L6-v2 |
+| jinaai/jina-colbert-v2                 |
 
 ### Upload to Azure Files
 
@@ -453,9 +456,10 @@ If any pods show `ImagePullBackOff` or `ErrImagePull`, see [Troubleshooting](#tr
 ```bash
 FRONTDOOR_HOSTNAME=$(jq -r '.frontDoorHostname.value' deployment-outputs.json)
 RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
-FRONTDOOR_NAME=$(jq -r '.frontDoorName.value' deployment-outputs.json)
+FRONTDOOR_NAME=$(jq -r '.frontDoorId.value' deployment-outputs.json | sed 's|.*/||')
 
 echo "Front Door hostname: $FRONTDOOR_HOSTNAME"
+echo "Front Door name: $FRONTDOOR_NAME"
 ```
 
 ### 8.2 Create DNS CNAME Record
@@ -463,7 +467,24 @@ echo "Front Door hostname: $FRONTDOOR_HOSTNAME"
 In your DNS provider, create a CNAME record:
 
 ```
-qwiser.myuniversity.edu  CNAME  <frontdoor-hostname>.azurefd.net
+qwiser.myuniversity.edu  CNAME  <frontdoor-hostname>
+```
+
+**If using Azure DNS Zone:**
+
+```bash
+# Replace with your DNS zone resource group and zone name
+DNS_ZONE_RG="your-dns-zone-resource-group"
+DNS_ZONE_NAME="myuniversity.edu"
+
+az network dns record-set cname set-record \
+    --resource-group "$DNS_ZONE_RG" \
+    --zone-name "$DNS_ZONE_NAME" \
+    --record-set-name "qwiser" \
+    --cname "$FRONTDOOR_HOSTNAME"
+
+# Verify the record
+nslookup qwiser.$DNS_ZONE_NAME
 ```
 
 ### 8.3 Add Custom Domain to Front Door
@@ -483,17 +504,40 @@ az afd custom-domain create \
 Get the validation token:
 
 ```bash
-az afd custom-domain show \
+VALIDATION_TOKEN=$(az afd custom-domain show \
     --resource-group "$RESOURCE_GROUP" \
     --profile-name "$FRONTDOOR_NAME" \
     --custom-domain-name "qwiser-custom" \
-    --query "validationProperties.validationToken" -o tsv
+    --query "validationProperties.validationToken" -o tsv | tr -d '\r')
+
+echo "Validation token: $VALIDATION_TOKEN"
 ```
 
 Create a TXT record in your DNS provider:
 
 ```
 _dnsauth.qwiser.myuniversity.edu  TXT  <validation-token>
+```
+
+**If using Azure DNS Zone** (faster propagation within Azure):
+
+```bash
+# Replace with your DNS zone resource group and zone name
+DNS_ZONE_RG="your-dns-zone-resource-group"
+DNS_ZONE_NAME="myuniversity.edu"
+
+az network dns record-set txt add-record \
+    --resource-group "$DNS_ZONE_RG" \
+    --zone-name "$DNS_ZONE_NAME" \
+    --record-set-name "_dnsauth.qwiser" \
+    --value "$VALIDATION_TOKEN"
+
+# Verify the record was created correctly
+az network dns record-set txt show \
+    --resource-group "$DNS_ZONE_RG" \
+    --zone-name "$DNS_ZONE_NAME" \
+    --name "_dnsauth.qwiser" \
+    --query "txtRecords[0].value[0]" -o tsv
 ```
 
 Wait for validation (can take a few minutes after DNS propagates):
@@ -503,7 +547,7 @@ az afd custom-domain show \
     --resource-group "$RESOURCE_GROUP" \
     --profile-name "$FRONTDOOR_NAME" \
     --custom-domain-name "qwiser-custom" \
-    --query "validationProperties.validationState" -o tsv
+    --query "domainValidationState" -o tsv
 ```
 
 Proceed when validation state is `Approved`.
@@ -511,7 +555,7 @@ Proceed when validation state is `Approved`.
 ### 8.5 Associate Domain with Route
 
 ```bash
-ENDPOINT_NAME=$(jq -r '.frontDoorEndpointName.value' deployment-outputs.json)
+ENDPOINT_NAME=$(az afd endpoint list --resource-group "$RESOURCE_GROUP" --profile-name "$FRONTDOOR_NAME" --query "[0].name" -o tsv | tr -d '\r')
 
 az afd route update \
     --resource-group "$RESOURCE_GROUP" \
@@ -530,76 +574,55 @@ az afd custom-domain show \
     --resource-group "$RESOURCE_GROUP" \
     --profile-name "$FRONTDOOR_NAME" \
     --custom-domain-name "qwiser-custom" \
-    --query "{domain: hostName, validation: validationProperties.validationState, certificate: tlsSettings.certificateType}"
+    --query "{domain: hostName, validation: domainValidationState, provisioning: provisioningState, certificate: tlsSettings.certificateType}" -o table
 ```
+
+Wait until:
+- `deploymentStatus` = `Succeeded`
+- `domainValidationState` = `Approved`
+- `provisioningState` = `Succeeded`
 
 ---
 
 ## Phase 9: Verification
 
-> **Note**: All commands use `az aks command invoke` for private AKS.
-
 ### 9.1 Check All Pods Running
 
 ```bash
 az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl get pods --all-namespaces | grep -E '^(default|keda|qdrant|ingress-nginx)'"
+    --command "kubectl get pods -n default"
 ```
 
-Expected: All pods should be in `Running` state.
+Expected: All pods should be in `Running` state with `1/1` Ready.
 
-### 9.2 Verify Health Endpoints
+> **Note**: If pods are Running, database and Redis connections are already verified - the services won't start without them.
+
+### 9.2 Verify External Access
 
 ```bash
 # Via Front Door (external) - this is the primary test
 curl https://qwiser.myuniversity.edu/ready
 ```
 
-Expected response: `{"status": "ready"}`
+Expected response: HTTP 200
 
-### 9.3 Verify Database Connection
+### 9.3 Configure LTI Integration
 
-```bash
-az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl exec deployment/internal-db -- python -c \"
-from sqlalchemy import create_engine, text
-import os
-engine = create_engine(os.environ['DATABASE_URL'])
-with engine.connect() as conn:
-    result = conn.execute(text('SELECT 1'))
-    print('Database: OK')
-\""
-```
+Now configure LTI to enable single sign-on from your LMS (Moodle, Canvas, etc.):
 
-### 9.4 Verify Redis Connection
+**See [LTI_INTEGRATION.md](./LTI_INTEGRATION.md)** for complete instructions.
 
-```bash
-az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl exec deployment/public-api -- python -c \"
-import asyncio
-from QWiserCommons.redis import AsyncRedisConnector
-async def test():
-    client = await AsyncRedisConnector.get_instance()
-    print('PING:', await client.ping())
-asyncio.run(test())
-\""
-```
+### 9.4 Application Tests
 
-### 9.5 Verify AI Models
+Verify core functionality works end-to-end:
 
-```bash
-az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl exec deployment/other-generation -- python -c \"
-from QWiserCommons.config import Config
-import asyncio
-async def test():
-    await Config.load()
-    ai_config = Config.get_ai_config('gpt-4.1-mini')
-    print(f'Endpoint: {ai_config.endpoint[:50]}...')
-    print(f'RPM: {ai_config.rpm}')
-asyncio.run(test())
-\""
-```
+| Test                | How to Verify                               |
+| ------------------- | ------------------------------------------- |
+| LTI launch          | Launch from LMS, verify SSO                 |
+| Content upload      | Upload a PDF document                       |
+| Tree generation     | Create knowledge tree from uploaded content |
+| Question generation | Generate questions from tree                |
+| Chat functionality  | Start a chat session with content           |
 
 ---
 
@@ -811,6 +834,6 @@ az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
 
 After successful deployment:
 
-1. **Configure LTI and test** - See [POST_DEPLOYMENT.md](./POST_DEPLOYMENT.md)
+1. **Configure LTI** - See [LTI_INTEGRATION.md](./LTI_INTEGRATION.md)
 2. **Plan secret rotation** - See [SECRET_ROTATION.md](./SECRET_ROTATION.md)
 3. **Performance tuning** - See [Phase 10](#phase-10-performance-tuning) after system has real usage data

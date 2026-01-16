@@ -154,6 +154,15 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    # Kubernetes API server (required for ingress controller to watch resources)
+    # API server IP = first IP in serviceCidr (default: 10.100.0.0/16 -> 10.100.0.1)
+    # UPDATE THIS if you customized serviceCidr in Bicep parameters!
+    - to:
+        - ipBlock:
+            cidr: 10.100.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
     # Forward to QWiser services in default namespace
     - to:
         - namespaceSelector:

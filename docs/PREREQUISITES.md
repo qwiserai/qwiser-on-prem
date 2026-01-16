@@ -50,8 +50,6 @@ done
 
 All providers should show `Registered`. If any show `NotRegistered` or `Registering`, wait and re-check before proceeding.
 
-> **Note**: `Microsoft.ContainerInstance` is critical - deployment scripts run in ACI containers. If not registered, the deployment will timeout after 20 minutes.
-
 ---
 
 ## Required Tools

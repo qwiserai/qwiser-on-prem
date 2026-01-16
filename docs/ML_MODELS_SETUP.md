@@ -1,9 +1,5 @@
 # QWiser University - ML Models Setup
 
-> **Last Updated**: 2026-01-14
-> **Version**: 1.0.0
-> **Audience**: University IT Infrastructure Teams
-
 ---
 
 ## Overview
@@ -108,8 +104,6 @@ echo "Storage Account: $STORAGE_ACCOUNT"
 
 ### Upload Models
 
-**Option A: Azure CLI (Recommended)**
-
 ```bash
 # Upload entire directory
 az storage file upload-batch \
@@ -118,21 +112,6 @@ az storage file upload-batch \
     --source ./ml-models \
     --auth-mode login \
     --pattern "*"
-```
-
-**Option B: AzCopy (Faster for large files)**
-
-```bash
-# Get storage account key
-STORAGE_KEY=$(az storage account keys list \
-    --account-name "$STORAGE_ACCOUNT" \
-    --resource-group "$RESOURCE_GROUP" \
-    --query "[0].value" -o tsv)
-
-# Upload with AzCopy
-azcopy copy "./ml-models/*" \
-    "https://${STORAGE_ACCOUNT}.file.core.windows.net/${SHARE_NAME}?${SAS_TOKEN}" \
-    --recursive
 ```
 
 **Verification:**
@@ -305,35 +284,7 @@ kubectl describe pod -l app=embeddings-worker-msgs | grep -A 20 Events
 
 ---
 
-## Model Update Procedure
-
-To update models without downtime:
-
-1. **Download new model version locally**
-2. **Upload to a new directory** (e.g., `fastembed-v2/`)
-3. **Test in staging** with new path
-4. **Update PV/PVC** to point to new directory
-5. **Rolling restart** pods: `kubectl rollout restart deployment/embeddings-worker-msgs`
-
----
-
-## GPU Optimization
-
-For optimal GPU utilization with FastEmbed:
-
-| Setting | Value | Purpose |
-|---------|-------|---------|
-| ONNX GPU Provider | CUDAExecutionProvider | Use GPU for inference |
-| Batch Size | 32-128 | Balance throughput/latency |
-| Max Seq Length | 512 | Truncate long texts |
-
-These are configured in the embeddings-worker application code and don't require infrastructure changes.
-
----
-
 ## Next Steps
 
 After ML models are set up:
-1. Continue with [IMAGE_IMPORT_GUIDE.md](./IMAGE_IMPORT_GUIDE.md)
-2. Deploy K8s manifests (includes PVC setup)
-3. Verify embeddings-worker pods can access models
+- Continue with Phase 5 in [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)

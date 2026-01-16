@@ -69,6 +69,13 @@ spec:
               value: "45"
             - name: CONFIG_SENTINEL_KEY
               value: "sentinel"
+            # Cache directories (avoid read-only filesystem errors)
+            - name: NUMBA_CACHE_DIR
+              value: "/tmp/numba_cache"
+            - name: HF_HOME
+              value: "/tmp/huggingface"
+            - name: TRANSFORMERS_CACHE
+              value: "/tmp/huggingface/transformers"
 
           resources:
             requests:

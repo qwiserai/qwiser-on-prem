@@ -9,4 +9,4 @@ qwiser/topic-modeling:v0.0.3
 qwiser/smart-quiz:v0.0.3
 qwiser/embeddings-worker:v0.0.2
 qwiser/frontend:v0.0.95
-qwiser/cronjobs:v0.0.4
+qwiser/cronjobs:v0.0.5

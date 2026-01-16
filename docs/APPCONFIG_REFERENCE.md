@@ -345,5 +345,4 @@ az appconfig kv import \
 ## Related Documentation
 
 - [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Full deployment guide
-- [AI_MODELS_SETUP.md](./AI_MODELS_SETUP.md) - AI model configuration
 - [SECRET_ROTATION.md](./SECRET_ROTATION.md) - Secret rotation procedures
