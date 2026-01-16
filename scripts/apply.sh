@@ -370,14 +370,22 @@ echo ""
 # Build manifests with kustomize
 echo "Building manifests with kustomize..."
 
+# Convert YAML files to Unix line endings before kustomize (Windows CRLF breaks YAML parsing)
+# Create a temp copy with fixed line endings
+TEMP_KUSTOMIZE_DIR=$(mktemp -d)
+cp -r "$KUSTOMIZE_DIR"/* "$TEMP_KUSTOMIZE_DIR/"
+find "$TEMP_KUSTOMIZE_DIR" -type f \( -name "*.yaml" -o -name "*.yml" \) -exec sed -i 's/\r$//' {} \;
+
 # Generate the substituted manifests
-MANIFESTS=$(kubectl kustomize "$KUSTOMIZE_DIR" | \
+MANIFESTS=$(kubectl kustomize "$TEMP_KUSTOMIZE_DIR" | \
     sed "s/REPLACE_WITH_CUSTOM_DOMAIN/$CUSTOM_DOMAIN/g" | \
     sed "s/REPLACE_WITH_ACR_LOGIN_SERVER/${ACR_LOGIN_SERVER//\//\\/}/g" | \
     sed "s/REPLACE_WITH_UAMI_CLIENT_ID/$UAMI_CLIENT_ID/g" | \
     sed "s/REPLACE_WITH_KEY_VAULT_NAME/$KEY_VAULT_NAME/g" | \
     sed "s/REPLACE_WITH_TENANT_ID/$TENANT_ID/g" | \
     sed "s/REPLACE_WITH_STORAGE_ACCOUNT_NAME/$STORAGE_ACCOUNT_NAME/g")
+
+rm -rf "$TEMP_KUSTOMIZE_DIR"
 
 if [ "$DRY_RUN" = true ]; then
     echo ""
@@ -395,27 +403,42 @@ echo ""
 
 if [ "$USE_INVOKE" = true ]; then
     # For invoke mode, we need to pass the manifests via --file
-    # Create a temporary file with the manifests
-    TEMP_MANIFEST=$(mktemp)
-    echo "$MANIFESTS" > "$TEMP_MANIFEST"
+    # Write manifest to a temp file in the repo root
+    TEMP_FILE="$REPO_ROOT/.tmp-manifest-$$.yaml"
+    echo "$MANIFESTS" > "$TEMP_FILE"
     
-    # Use --file to upload the manifest file to the cluster
+    # Convert WSL path to Windows path if running in WSL (az.exe needs Windows paths)
+    if [[ "$TEMP_FILE" == /mnt/* ]]; then
+        # Convert /mnt/c/... to C:\...  (backslashes for Windows)
+        TEMP_FILE_FOR_AZ=$(echo "$TEMP_FILE" | sed 's|^/mnt/\([a-z]\)/|\U\1:\\|' | sed 's|/|\\|g')
+    else
+        TEMP_FILE_FOR_AZ="$TEMP_FILE"
+    fi
+    
+    echo "Uploading manifest ($(wc -c < "$TEMP_FILE") bytes)..."
+    
+    # Use --file to specify the file to upload (az expects the file, not directory)
     set +e
     APPLY_OUTPUT=$(az aks command invoke \
         --resource-group "$RESOURCE_GROUP" \
         --name "$AKS_NAME" \
-        --command "kubectl apply -f manifest.yaml" \
-        --file "$TEMP_MANIFEST:manifest.yaml" 2>&1)
+        --command "kubectl apply -f .tmp-manifest-$$.yaml" \
+        --file "$TEMP_FILE_FOR_AZ" 2>&1)
     APPLY_EXIT=$?
     set -e
     
-    rm -f "$TEMP_MANIFEST"
+    rm -f "$TEMP_FILE"
     
-    echo "$APPLY_OUTPUT"
-    
-    if [ $APPLY_EXIT -ne 0 ]; then
+    # Check for errors in the output (exitcode is in the output text)
+    if echo "$APPLY_OUTPUT" | grep -q "exitcode=0"; then
+        echo "$APPLY_OUTPUT"
+    else
+        echo "$APPLY_OUTPUT"
         echo ""
         echo "[ERROR] Failed to apply manifests"
+        echo ""
+        echo "If you see 'unexpected end of stream', the manifest may have been truncated."
+        echo "Try running with --dry-run to inspect the generated manifests."
         exit 1
     fi
 else
