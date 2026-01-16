@@ -14,12 +14,14 @@
 4. [Phase 2: Post-Deployment Configuration](#phase-2-post-deployment-configuration)
 5. [Phase 3: AI Models Setup](#phase-3-ai-models-setup)
 6. [Phase 4: ML Models Setup](#phase-4-ml-models-setup)
-7. [Phase 5: Container Image Import](#phase-5-container-image-import)
-8. [Phase 6: Kubernetes Deployment](#phase-6-kubernetes-deployment)
-9. [Phase 7: DNS & Front Door Configuration](#phase-7-dns--front-door-configuration)
-10. [Phase 8: Verification](#phase-8-verification)
-11. [Troubleshooting](#troubleshooting)
-12. [Cleanup](#cleanup)
+7. [Phase 5: Connect to AKS](#phase-5-connect-to-aks)
+8. [Phase 6: Container Image Import](#phase-6-container-image-import)
+9. [Phase 7: Kubernetes Deployment](#phase-7-kubernetes-deployment)
+10. [Phase 8: DNS & Front Door Configuration](#phase-8-dns--front-door-configuration)
+11. [Phase 9: Verification](#phase-9-verification)
+12. [Phase 10: Performance Tuning](#phase-10-performance-tuning)
+13. [Troubleshooting](#troubleshooting)
+14. [Cleanup](#cleanup)
 
 ---
 
@@ -304,25 +306,69 @@ az aks check-acr --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --acr $AC
 > **Note**: All kubectl/helm commands below use `az aks command invoke` for private AKS clusters.
 > If you have VPN access to the cluster, or the cluster is not private, you can run commands directly.
 
-### 7.1 Install KEDA
+### 7.1 Enable VPA (Vertical Pod Autoscaler)
+
+VPA collects resource usage metrics and provides recommendations for CPU/memory requests. QWiser uses VPA in **recommendation-only mode** (`updateMode: Off`) - it won't modify pods automatically. KEDA handles actual autoscaling. VPA recommendations help with capacity planning and tuning; see [Phase 10: Performance Tuning](#phase-10-performance-tuning) for how to use them.
 
 ```bash
-# Add Helm repos locally (runs on your machine)
-helm repo add kedacore https://kedacore.github.io/charts
-helm repo update
+AKS_NAME=$(jq -r '.aksClusterName.value' deployment-outputs.json)
+RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
 
-# Install KEDA via az aks command invoke
-az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "helm repo add kedacore https://kedacore.github.io/charts && helm repo update && helm install keda kedacore/keda --namespace keda --create-namespace --version 2.16.1"
+# Enable VPA addon on existing cluster
+az aks update \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$AKS_NAME" \
+    --enable-vpa
 ```
+
+> **Note**: This may take a few minutes. The command runs against the AKS control plane, not inside the cluster.
 
 **Verification**:
 ```bash
 az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl get pods -n keda"
+    --command "kubectl get pods -n kube-system | grep vpa"
 ```
 
-### 7.2 Install Qdrant
+Expected output shows VPA pods running:
+```
+vpa-admission-controller-xxxxx   1/1     Running   0          2m
+vpa-recommender-xxxxx            1/1     Running   0          2m
+vpa-updater-xxxxx                1/1     Running   0          2m
+```
+
+### 7.2 Install KEDA
+
+KEDA (Kubernetes Event-Driven Autoscaling) enables autoscaling based on resource utilization andexternal metrics like queue length. AKS has a built-in KEDA addon.
+
+```bash
+# Enable KEDA addon on existing cluster
+az aks update \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$AKS_NAME" \
+    --enable-keda
+```
+
+> **Note**: This may take a few minutes. The KEDA version installed depends on your AKS Kubernetes version.
+
+**Verification**:
+```bash
+# Check KEDA is enabled
+az aks show -g $RESOURCE_GROUP -n $AKS_NAME \
+    --query "workloadAutoScalerProfile.keda.enabled"
+
+# Check KEDA pods are running
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get pods -n kube-system | grep keda"
+```
+
+Expected output shows KEDA pods running:
+```
+keda-admission-webhooks-xxxxx    1/1     Running   0          2m
+keda-operator-xxxxx              1/1     Running   0          2m
+keda-operator-metrics-xxxxx      1/1     Running   0          2m
+```
+
+### 7.3 Install Qdrant
 
 ```bash
 KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
@@ -345,23 +391,58 @@ az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
     --command "kubectl get pods -n qdrant && kubectl get pvc -n qdrant"
 ```
 
-### 7.3 Apply QWiser Manifests
+### 7.4 Apply QWiser Manifests
 
 ```bash
-cd k8s/base
-
-# For private AKS:
+# For private AKS (recommended):
 ./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
 
-# Or preview what will be applied:
+# Or with direct kubectl access (requires VPN):
+./scripts/apply.sh
+
+# Preview what will be applied (dry run):
 ./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME --dry-run
 ```
 
-**Verification**:
+### 7.5 Verify Deployment
+
+After `apply.sh` completes, verify all pods are running:
+
+**Via `az aks command invoke`** (for private AKS):
 ```bash
+# Check all pods are Running
 az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl get pods && kubectl get deployments && kubectl get ingress"
+    --command "kubectl get pods -n default"
+
+# Check deployments are ready
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get deployments -n default"
+
+# Check ingress is configured
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get ingress -n default"
 ```
+
+**With direct kubectl** (if VPN connected):
+```bash
+kubectl get pods -l app.kubernetes.io/part-of=qwiser-on-prem
+kubectl get deployments
+kubectl get ingress
+```
+
+Expected pod status - all should show `Running` (or `Completed` for jobs):
+```
+NAME                                READY   STATUS    RESTARTS   AGE
+frontend-xxxxx                      1/1     Running   0          2m
+internal-db-xxxxx                   1/1     Running   0          2m
+other-generation-xxxxx              1/1     Running   0          2m
+public-api-xxxxx                    1/1     Running   0          2m
+smart-quiz-xxxxx                    1/1     Running   0          2m
+text-loading-xxxxx                  1/1     Running   0          2m
+topic-modeling-xxxxx                1/1     Running   0          2m
+```
+
+If any pods show `ImagePullBackOff` or `ErrImagePull`, see [Troubleshooting](#troubleshooting).
 
 ---
 
@@ -613,9 +694,123 @@ az appconfig purge --name qwiser-prod-appconfig --location eastus --yes
 
 ---
 
+## Phase 10: Performance Tuning
+
+After the system has been running for a few days with real usage, use VPA recommendations to optimize resource allocation.
+
+### 10.1 View VPA Recommendations
+
+VPA analyzes actual resource usage and provides recommendations for CPU and memory requests:
+
+```bash
+# View all VPA recommendations
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get vpa -o custom-columns='NAME:.metadata.name,CPU-REQ:.status.recommendation.containerRecommendations[0].target.cpu,MEM-REQ:.status.recommendation.containerRecommendations[0].target.memory'"
+```
+
+For detailed recommendations including lower/upper bounds:
+```bash
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl describe vpa public-api-vpa"
+```
+
+Example output:
+```
+Recommendation:
+  Container Recommendations:
+    Container Name:  public-api
+    Lower Bound:
+      Cpu:     250m
+      Memory:  384Mi
+    Target:
+      Cpu:     500m
+      Memory:  512Mi
+    Upper Bound:
+      Cpu:     1
+      Memory:  1Gi
+```
+
+### 10.2 Adjust Resource Requests
+
+If VPA recommendations differ significantly from current settings, update the deployment manifests.
+
+**Option A: Edit manifests directly**
+
+Edit the resource requests in `k8s/base/deployments/*.yaml`:
+
+```yaml
+resources:
+  requests:
+    cpu: "500m"      # Update based on VPA target
+    memory: "512Mi"  # Update based on VPA target
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+```
+
+Then re-apply:
+```bash
+./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
+```
+
+**Option B: Patch specific deployments**
+
+For quick adjustments without modifying files:
+```bash
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl set resources deployment/public-api --requests=cpu=500m,memory=512Mi --limits=cpu=1000m,memory=1Gi"
+```
+
+### 10.3 Adjust Replica Counts
+
+KEDA handles autoscaling, but you may want to adjust minimum replicas for high-availability or cost optimization.
+
+**View current KEDA ScaledObjects:**
+```bash
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get scaledobjects -o custom-columns='NAME:.metadata.name,MIN:.spec.minReplicaCount,MAX:.spec.maxReplicaCount,CURRENT:.status.scaleTargetRef.deploymentSize'"
+```
+
+**Adjust min/max replicas:**
+
+Edit `k8s/base/keda/*.yaml` and update:
+```yaml
+spec:
+  minReplicaCount: 2   # Minimum pods (for HA)
+  maxReplicaCount: 10  # Maximum pods (cost control)
+```
+
+Then re-apply manifests.
+
+### 10.4 Monitor Resource Usage
+
+Track resource utilization over time:
+
+```bash
+# Current resource usage vs requests
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl top pods -l app.kubernetes.io/part-of=qwiser-on-prem"
+
+# Node-level utilization
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl top nodes"
+```
+
+### 10.5 Recommended Review Schedule
+
+| Timeframe | Action                                                       |
+| --------- | ------------------------------------------------------------ |
+| Day 1-3   | Monitor for crashes, OOMKills, throttling                    |
+| Week 1    | Review VPA recommendations, adjust obvious misconfigurations |
+| Month 1   | Fine-tune based on actual usage patterns                     |
+| Quarterly | Review and optimize for cost/performance balance             |
+
+---
+
 ## Next Steps
 
 After successful deployment:
 
 1. **Configure LTI and test** - See [POST_DEPLOYMENT.md](./POST_DEPLOYMENT.md)
 2. **Plan secret rotation** - See [SECRET_ROTATION.md](./SECRET_ROTATION.md)
+3. **Performance tuning** - See [Phase 10](#phase-10-performance-tuning) after system has real usage data

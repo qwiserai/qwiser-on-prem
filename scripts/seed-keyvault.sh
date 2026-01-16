@@ -231,6 +231,12 @@ set_secret "$KEYVAULT_NAME" "INTERNAL-SECRET-KEY" "$internal_secret" "Internal s
 qdrant_api_key=$(generate_random_string 64)
 set_secret "$KEYVAULT_NAME" "QDRANT-API-KEY" "$qdrant_api_key" "Qdrant API key (auto-generated)"
 
+# LTI-PRIVATE-KEY - Auto-generated RSA keypair for LTI 1.3
+# The app requires a valid RSA key to start; platform config can be updated later
+echo -e "  ${GRAY}[Generating] LTI-PRIVATE-KEY - RSA 2048-bit keypair${NC}"
+lti_private_key=$(openssl genrsa 2048 2>/dev/null)
+set_secret "$KEYVAULT_NAME" "LTI-PRIVATE-KEY" "$lti_private_key" "LTI 1.3 RSA private key (auto-generated)"
+
 # ============================================================================
 # Placeholder Secrets (IT must update after deployment)
 # ============================================================================
@@ -244,11 +250,6 @@ set_secret "$KEYVAULT_NAME" "AI-FOUNDRY-API-KEY" \
     "PLACEHOLDER-UPDATE-AFTER-AI-DEPLOYMENT" \
     "Azure AI Foundry API key (IT must update)"
 
-# LTI-PRIVATE-KEY - IT configures for LMS integration
-set_secret "$KEYVAULT_NAME" "LTI-PRIVATE-KEY" \
-    "PLACEHOLDER-UPDATE-FOR-LTI-INTEGRATION" \
-    "LTI 1.3 private key (IT must update)"
-
 # ============================================================================
 # Summary
 # ============================================================================
@@ -260,5 +261,5 @@ echo -e "${CYAN}======================================${NC}"
 echo ""
 echo "Next steps:"
 echo -e "  ${GRAY}1. Update AI-FOUNDRY-API-KEY after deploying Azure AI Foundry${NC}"
-echo -e "  ${GRAY}2. Update LTI-PRIVATE-KEY when configuring LMS integration${NC}"
+echo -e "  ${GRAY}2. Configure LTI platform settings in App Configuration (see LTI_INTEGRATION.md)${NC}"
 echo ""

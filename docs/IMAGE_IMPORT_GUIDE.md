@@ -157,54 +157,7 @@ image: youruni-acr.azurecr.io/qwiser/public-api:v1.0.0
 
 Image versions are defined in `k8s/base/kustomization.yaml` under the `images:` section. These must match the tags in `VERSIONS.txt`.
 
-To apply manifests:
-```bash
-# For private AKS (recommended):
-./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
-
-# Or with direct kubectl access (requires VPN):
-./scripts/apply.sh
-```
-
-### Verify Deployment
-
-After `apply.sh` completes, verify all pods are running:
-
-**Via `az aks command invoke`** (for private AKS):
-```bash
-# Check all pods are Running
-az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl get pods -l app.kubernetes.io/part-of=qwiser-on-prem"
-
-# Check deployments are ready
-az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl get deployments"
-
-# Check ingress is configured
-az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
-    --command "kubectl get ingress"
-```
-
-**With direct kubectl** (if VPN connected):
-```bash
-kubectl get pods -l app.kubernetes.io/part-of=qwiser-on-prem
-kubectl get deployments
-kubectl get ingress
-```
-
-Expected pod status - all should show `Running` (or `Completed` for jobs):
-```
-NAME                                READY   STATUS    RESTARTS   AGE
-frontend-xxxxx                      1/1     Running   0          2m
-internal-db-xxxxx                   1/1     Running   0          2m
-other-generation-xxxxx              1/1     Running   0          2m
-public-api-xxxxx                    1/1     Running   0          2m
-smart-quiz-xxxxx                    1/1     Running   0          2m
-text-loading-xxxxx                  1/1     Running   0          2m
-topic-modeling-xxxxx                1/1     Running   0          2m
-```
-
-If any pods show `ImagePullBackOff` or `ErrImagePull`, see [Troubleshooting](#troubleshooting).
+> **Next Step**: After verifying images are imported and AKS can pull them, return to [DEPLOYMENT_GUIDE.md Phase 7](./DEPLOYMENT_GUIDE.md#phase-7-kubernetes-deployment) to install KEDA, Qdrant, and then apply manifests.
 
 ---
 

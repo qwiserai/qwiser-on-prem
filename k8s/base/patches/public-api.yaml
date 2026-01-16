@@ -57,12 +57,12 @@ spec:
                 name: qwiser-config
 
           env:
-            # FORWARDED_ALLOW_IPS: Trust only pod CIDR for proxy headers
-            # This prevents header spoofing - only NGINX Ingress pods can set
-            # X-Forwarded-For headers that the app will trust.
-            # IMPORTANT: Must match pod CIDR in AKS network profile (default: 192.168.0.0/16)
+            # FORWARDED_ALLOW_IPS: Trust proxy headers from NGINX Ingress
+            # Using "*" trusts all proxies. This is safe because:
+            # 1. NetworkPolicy restricts ingress to only NGINX Ingress controller
+            # 2. External traffic cannot reach pods directly (private AKS + Front Door)
             - name: FORWARDED_ALLOW_IPS
-              value: "192.168.0.0/16"
+              value: "*"
             - name: ENVIRONMENT
               value: "PRODUCTION"
             # Config refresh settings (CONFIG_LABEL comes from ConfigMap)
