@@ -226,11 +226,12 @@ validate_versions() {
 run_kubectl() {
     local cmd="$1"
     if [ "$USE_INVOKE" = true ]; then
+        # Note: tr -d '\r' strips Windows CRLF from az.exe output (running on Windows from WSL)
         az aks command invoke \
             --resource-group "$RESOURCE_GROUP" \
             --name "$AKS_NAME" \
             --command "$cmd" \
-            --query "logs" -o tsv 2>/dev/null
+            --query "logs" -o tsv 2>/dev/null | tr -d '\r'
     else
         eval "$cmd"
     fi
