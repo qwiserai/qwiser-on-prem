@@ -25,7 +25,8 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # ssl-redirect disabled - Front Door handles TLS termination
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 
     # --- Forwarded Headers (from Front Door via NGINX) ---
     nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
@@ -45,24 +46,21 @@ spec:
   # ==========================================================================
   # TLS Configuration
   # ==========================================================================
-  # Choose ONE of the following options:
+  # For private AKS with Azure Front Door:
+  #   - Front Door terminates TLS (Azure-managed certificate)
+  #   - Traffic from Front Door to NGINX Ingress is HTTP over private VNet
+  #   - This is secure because the VNet is isolated and Front Door is the only entry point
   #
-  # OPTION A: Secrets Store CSI Driver (recommended for Azure-native)
-  #   - Certificate synced from Key Vault via SecretProviderClass
-  #   - Requires secretproviderclass.yaml to be applied first
-  #   - secretName: qwiser-tls (synced by CSI Driver)
+  # If you need end-to-end TLS (HTTPS from Front Door to NGINX), uncomment below
+  # and either:
+  #   A) Upload certificate to Key Vault as 'qwiser-tls-cert' (PFX format)
+  #   B) Install cert-manager and add annotation: cert-manager.io/cluster-issuer: "letsencrypt-prod"
   #
-  # OPTION B: cert-manager with Let's Encrypt
-  #   - Automatic certificate provisioning and renewal
-  #   - Add annotation: cert-manager.io/cluster-issuer: "letsencrypt-prod"
-  #   - secretName: qwiser-tls (created by cert-manager)
-  #
-  # Uncomment the appropriate tls section below after setup.
+  # tls:
+  #   - hosts:
+  #       - REPLACE_WITH_CUSTOM_DOMAIN
+  #     secretName: qwiser-tls
   # ==========================================================================
-  tls:
-    - hosts:
-        - REPLACE_WITH_CUSTOM_DOMAIN
-      secretName: qwiser-tls
 
   rules:
     - host: REPLACE_WITH_CUSTOM_DOMAIN

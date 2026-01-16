@@ -42,14 +42,14 @@ param privateDnsZoneId string
 
 @description('Redis SKU name. Balanced tier recommended for standard workloads. Size suffix indicates approximate memory (B1=1GB, B5=5GB, B10=10GB, B20=20GB).')
 @allowed([
-  'Balanced_B0'    // 0.5 GB - Dev/test only
-  'Balanced_B1'    // 1 GB   - Dev/test
-  'Balanced_B3'    // 3 GB   - Small production
-  'Balanced_B5'    // 5 GB   - Small production (default)
-  'Balanced_B10'   // 10 GB  - Medium production
-  'Balanced_B20'   // 20 GB  - Large production
-  'Balanced_B50'   // 50 GB  - Large production
-  'Balanced_B100'  // 100 GB - Enterprise
+  'Balanced_B0' // 0.5 GB - Dev/test only
+  'Balanced_B1' // 1 GB   - Dev/test
+  'Balanced_B3' // 3 GB   - Small production
+  'Balanced_B5' // 5 GB   - Small production (default)
+  'Balanced_B10' // 10 GB  - Medium production
+  'Balanced_B20' // 20 GB  - Large production
+  'Balanced_B50' // 50 GB  - Large production
+  'Balanced_B100' // 100 GB - Enterprise
 ])
 param skuName string = 'Balanced_B5'
 
@@ -80,7 +80,8 @@ param clusteringPolicy string = 'EnterpriseCluster'
 @description('Enable public network access. Set to true for external embeddings-worker access during testing. Security is maintained via Entra ID auth.')
 param enablePublicAccess bool = false
 
-// Note: workloadIdentityPrincipalId removed - Redis Enterprise uses Access Policies, not RBAC
+@description('Principal ID of the workload identity for Redis data access')
+param workloadIdentityPrincipalId string
 
 // ============================================================================
 // Variables
@@ -201,22 +202,31 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
 // ============================================================================
 // Data-Plane Access for Workload Identity
 // ============================================================================
-// NOTE: Azure Managed Redis (Enterprise) uses Access Policies for data-plane
-// auth, NOT Azure RBAC roles. The "Redis Cache Data Contributor" role only
-// exists for Azure Cache for Redis (non-Enterprise).
+// Azure Managed Redis (Enterprise) with Entra ID authentication requires
+// an Access Policy Assignment on the database for data-plane access.
 //
-// For Entra ID authentication with Redis Enterprise:
-// - Configure Access Policies post-deployment via Azure Portal or CLI
-// - Or re-enable access keys (accessKeyAuthentication: Enabled)
+// The "default" access policy grants full data access (read/write).
+// This is separate from RBAC roles which control the management plane.
 //
-// Access Policy setup (post-deployment):
-//   az redis access-policy-assignment create \
-//     --name <policy-name> \
-//     --policy-name "Data Owner" \
-//     --object-id <workload-identity-object-id> \
-//     --resource-group <rg> \
-//     --cache-name <redis-name>
+// Ref: https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise/databases/accesspolicyassignments
 // ============================================================================
+
+// Access Policy Assignment name must be alphanumeric, 1-60 chars
+// Using a deterministic name based on principal ID for idempotency
+var accessPolicyAssignmentName = 'workloadidentity'
+
+resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = {
+  parent: redisDatabase
+  name: accessPolicyAssignmentName
+  properties: {
+    // "default" is currently the only supported access policy name
+    // It grants full data access (all commands, all keys)
+    accessPolicyName: 'default'
+    user: {
+      objectId: workloadIdentityPrincipalId
+    }
+  }
+}
 
 // ============================================================================
 // Outputs

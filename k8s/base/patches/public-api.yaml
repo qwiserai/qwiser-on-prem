@@ -79,17 +79,23 @@ spec:
               memory: "4Gi"
               cpu: "2000m"
 
+          # Health probes require internal auth token
+          # Using exec probe with wget to include Authorization header
           readinessProbe:
-            httpGet:
-              path: /ready
-              port: 8000
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'wget -q --header="Authorization: Bearer $(cat /mnt/secrets/internal-secret-key)" -O /dev/null http://localhost:8000/ready'
             initialDelaySeconds: 60
             periodSeconds: 15
 
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8000
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'wget -q --header="Authorization: Bearer $(cat /mnt/secrets/internal-secret-key)" -O /dev/null http://localhost:8000/healthz'
             initialDelaySeconds: 120
             periodSeconds: 45
             timeoutSeconds: 40
@@ -98,11 +104,17 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: internal-secret
+              mountPath: /mnt/secrets
+              readOnly: true
 
-      # Volumes for writable directories
+      # Volumes for writable directories and secrets
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: internal-secret
+          secret:
+            secretName: keda-auth-secret
 
       affinity:
         podAntiAffinity:

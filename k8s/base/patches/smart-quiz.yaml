@@ -65,6 +65,9 @@ spec:
               value: "45"
             - name: CONFIG_SENTINEL_KEY
               value: "sentinel"
+            # Matplotlib cache directory (avoid read-only filesystem errors)
+            - name: MPLCONFIGDIR
+              value: "/tmp/matplotlib"
 
           resources:
             requests:

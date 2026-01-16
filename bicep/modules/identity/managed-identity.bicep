@@ -16,9 +16,9 @@
 // Additional roles assigned by other modules:
 //   - Key Vault Secrets User (keyvault.bicep)
 //   - App Configuration Data Reader (appconfig.bicep)
-//   - Private DNS Zone Contributor (Phase 2, for AKS private cluster)
-//   - Redis Data Owner (Phase 2, redis.bicep)
-//   - AcrPull (Phase 2, aks.bicep - assigned to kubelet identity after cluster creation)
+//   - Private DNS Zone Contributor (this module, for AKS private cluster)
+//   - Redis Cache Contributor (redis.bicep, for Entra ID auth)
+//   - AcrPull (aks.bicep - assigned to kubelet identity after cluster creation)
 // ============================================================================
 
 @description('Azure region for resources')

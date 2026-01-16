@@ -125,8 +125,9 @@ if [[ ! -f "$VERSIONS_FILE" ]]; then
 fi
 
 # Parse VERSIONS.txt (skip comments and empty lines)
+# Note: "|| [[ -n "$line" ]]" ensures the last line is read even without trailing newline
 IMAGES=()
-while IFS= read -r line; do
+while IFS= read -r line || [[ -n "$line" ]]; do
     # Skip comments and empty lines
     [[ "$line" =~ ^#.*$ ]] && continue
     [[ -z "${line// /}" ]] && continue  # Skip empty or whitespace-only lines

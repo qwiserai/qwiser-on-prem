@@ -87,14 +87,14 @@ param mysqlHighAvailabilityMode string = 'Disabled'
 
 @description('Redis SKU name. Balanced tier recommended for QWiser workloads.')
 @allowed([
-  'Balanced_B0'    // 0.5 GB - Dev/test only
-  'Balanced_B1'    // 1 GB   - Dev/test
-  'Balanced_B3'    // 3 GB   - Small production
-  'Balanced_B5'    // 5 GB   - Small production (default)
-  'Balanced_B10'   // 10 GB  - Medium production
-  'Balanced_B20'   // 20 GB  - Large production
-  'Balanced_B50'   // 50 GB  - Large production
-  'Balanced_B100'  // 100 GB - Enterprise
+  'Balanced_B0' // 0.5 GB - Dev/test only
+  'Balanced_B1' // 1 GB   - Dev/test
+  'Balanced_B3' // 3 GB   - Small production
+  'Balanced_B5' // 5 GB   - Small production (default)
+  'Balanced_B10' // 10 GB  - Medium production
+  'Balanced_B20' // 20 GB  - Large production
+  'Balanced_B50' // 50 GB  - Large production
+  'Balanced_B100' // 100 GB - Enterprise
 ])
 param redisSkuName string = 'Balanced_B5'
 
@@ -358,6 +358,7 @@ module redis 'modules/data/redis.bicep' = {
     highAvailability: redisHighAvailability
     zones: redisZones
     enablePublicAccess: enableRedisPublicAccess
+    workloadIdentityPrincipalId: managedIdentity.outputs.principalId
   }
 }
 

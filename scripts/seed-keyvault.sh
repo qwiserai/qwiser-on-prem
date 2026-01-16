@@ -232,10 +232,11 @@ qdrant_api_key=$(generate_random_string 64)
 set_secret "$KEYVAULT_NAME" "QDRANT-API-KEY" "$qdrant_api_key" "Qdrant API key (auto-generated)"
 
 # LTI-PRIVATE-KEY - Auto-generated RSA keypair for LTI 1.3
-# The app requires a valid RSA key to start; platform config can be updated later
-echo -e "  ${GRAY}[Generating] LTI-PRIVATE-KEY - RSA 2048-bit keypair${NC}"
-lti_private_key=$(openssl genrsa 2048 2>/dev/null)
-set_secret "$KEYVAULT_NAME" "LTI-PRIVATE-KEY" "$lti_private_key" "LTI 1.3 RSA private key (auto-generated)"
+# The app requires a valid base-64 encoded RSA key to start; platform config can be updated later
+echo -e "  ${GRAY}[Generating] LTI-PRIVATE-KEY - RSA 2048-bit keypair (base64-encoded)${NC}"
+lti_private_key_raw=$(openssl genrsa 2048 2>/dev/null)
+lti_private_key=$(echo "$lti_private_key_raw" | base64 -w 0)
+set_secret "$KEYVAULT_NAME" "LTI-PRIVATE-KEY" "$lti_private_key" "LTI 1.3 RSA private key (auto-generated, base64-encoded)"
 
 # ============================================================================
 # Placeholder Secrets (IT must update after deployment)

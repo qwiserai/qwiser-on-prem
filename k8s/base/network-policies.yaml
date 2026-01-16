@@ -245,6 +245,13 @@ spec:
           port: 6333
         - protocol: TCP
           port: 6334
+    # Redis via Private Endpoint (Azure Managed Redis uses port 10000)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 10000
 
 ---
 # =============================================================================

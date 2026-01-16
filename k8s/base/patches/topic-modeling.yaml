@@ -78,21 +78,6 @@ spec:
               memory: "13Gi"
               cpu: "6000m"
 
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: 8000
-            initialDelaySeconds: 60
-            periodSeconds: 15
-
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8000
-            initialDelaySeconds: 120
-            periodSeconds: 45
-            timeoutSeconds: 60
-
           # Volume mounts for writable directories (readOnlyRootFilesystem: true)
           volumeMounts:
             - name: tmp
