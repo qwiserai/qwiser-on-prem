@@ -178,9 +178,6 @@ echo "  Label:              $LABEL"
 echo "  Force overwrite:    $FORCE"
 echo ""
 
-# Track overall success
-overall_success=true
-
 # ============================================================================
 # Step 1: Seed Key Vault
 # ============================================================================
@@ -194,12 +191,11 @@ else
     force_arg=""
     [[ "$FORCE" == "true" ]] && force_arg="-f"
 
-    if "$SCRIPT_DIR/seed-keyvault.sh" -k "$KEYVAULT_NAME" $force_arg; then
-        echo -e "${GREEN}[OK] Key Vault seeding completed${NC}"
-    else
+    if ! "$SCRIPT_DIR/seed-keyvault.sh" -k "$KEYVAULT_NAME" $force_arg; then
         echo -e "${RED}[FAILED] Key Vault seeding failed${NC}"
-        overall_success=false
+        exit 1
     fi
+    echo -e "${GREEN}[OK] Key Vault seeding completed${NC}"
 fi
 
 echo ""
@@ -217,7 +213,7 @@ else
     force_arg=""
     [[ "$FORCE" == "true" ]] && force_arg="-f"
 
-    if "$SCRIPT_DIR/seed-appconfig.sh" \
+    if ! "$SCRIPT_DIR/seed-appconfig.sh" \
         --appconfig-name "$APPCONFIG_NAME" \
         --keyvault-uri "$KEYVAULT_URI" \
         --label "$LABEL" \
@@ -227,11 +223,10 @@ else
         --redis-port "$REDIS_PORT" \
         --storage-queue-url "$STORAGE_QUEUE_URL" \
         $force_arg; then
-        echo -e "${GREEN}[OK] App Configuration seeding completed${NC}"
-    else
         echo -e "${RED}[FAILED] App Configuration seeding failed${NC}"
-        overall_success=false
+        exit 1
     fi
+    echo -e "${GREEN}[OK] App Configuration seeding completed${NC}"
 fi
 
 echo ""
@@ -246,14 +241,13 @@ else
     echo -e "${CYAN}[STEP 3/3] Approving Front Door PE Connection...${NC}"
     echo ""
 
-    if "$SCRIPT_DIR/approve-pe-connection.sh" \
+    if ! "$SCRIPT_DIR/approve-pe-connection.sh" \
         --resource-group "$RESOURCE_GROUP" \
         --pls-name "$PLS_NAME"; then
-        echo -e "${GREEN}[OK] PE connection approval completed${NC}"
-    else
         echo -e "${RED}[FAILED] PE connection approval failed${NC}"
-        overall_success=false
+        exit 1
     fi
+    echo -e "${GREEN}[OK] PE connection approval completed${NC}"
 fi
 
 echo ""
@@ -263,11 +257,7 @@ echo ""
 # ============================================================================
 
 echo -e "${CYAN}============================================================${NC}"
-if [[ "$overall_success" == "true" ]]; then
-    echo -e "${GREEN}        Post-Deployment Setup Complete!                    ${NC}"
-else
-    echo -e "${RED}        Post-Deployment Setup Completed with Errors         ${NC}"
-fi
+echo -e "${GREEN}        Post-Deployment Setup Complete!                    ${NC}"
 echo -e "${CYAN}============================================================${NC}"
 echo ""
 
@@ -280,8 +270,4 @@ echo -e "  ${GRAY}5. Verify Front Door health probes are passing${NC}"
 echo -e "  ${GRAY}6. Deploy applications to AKS cluster${NC}"
 echo ""
 
-if [[ "$overall_success" == "true" ]]; then
-    exit 0
-else
-    exit 1
-fi
+exit 0
