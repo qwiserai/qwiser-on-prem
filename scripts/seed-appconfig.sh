@@ -147,6 +147,10 @@ echo ""
 
 # Pre-flight check: verify App Configuration access
 echo -e "${GRAY}Checking App Configuration access...${NC}"
+
+# First check if public network access is disabled (management plane works even when data plane is blocked)
+public_access=$(az appconfig show --name "$APPCONFIG_NAME" --resource-group "$RESOURCE_GROUP" --query "publicNetworkAccess" -o tsv 2>/dev/null || echo "unknown")
+
 # Use --auth-mode login to force RBAC auth and avoid access key fallback noise
 # Temporarily disable set -e to capture the error properly
 set +e
@@ -161,10 +165,8 @@ if [[ $exit_code -ne 0 ]]; then
     echo -e "${RED}$error_output${NC}"
     echo ""
     
-    # Check if public network access is disabled (this causes generic "Forbidden" errors)
-    public_access=$(az appconfig show --name "$APPCONFIG_NAME" --resource-group "$RESOURCE_GROUP" --query "publicNetworkAccess" -o tsv 2>/dev/null || echo "unknown")
-    
-    if [[ "$public_access" == "Disabled" ]] || echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
+    # Check network access first - "Forbidden" with public access disabled = network issue, not RBAC
+    if [[ "${public_access,,}" == "disabled" ]] || echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
         echo -e "${YELLOW}App Configuration has public network access disabled (private endpoint only).${NC}"
         echo ""
         echo "Options:"
