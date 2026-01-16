@@ -100,6 +100,12 @@ jq 'keys' deployment-outputs.json
 
 Seeds Key Vault secrets and App Configuration values.
 
+**Linux/WSL users**: Fix line endings and make scripts executable:
+```bash
+find . -name "*.sh" -exec sed -i 's/\r$//' {} \;
+find . -name "*.sh" -exec chmod +x {} \;
+```
+
 ```bash
 # Load values from deployment outputs
 RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
