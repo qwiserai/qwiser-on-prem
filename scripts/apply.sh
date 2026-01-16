@@ -20,13 +20,15 @@
 #   --kustomize-dir, -k   Path to kustomization.yaml directory (default: k8s/base)
 #   --namespace           Kubernetes namespace (default: default)
 #   --dry-run             Show what would be applied without applying
+#   --skip-version-check  Skip VERSIONS.txt vs kustomization.yaml validation (warning only)
 #   -h, --help            Show this help message
 #
 # What it does:
-#   1. Reads values from qwiser-config ConfigMap
-#   2. Builds manifests with kustomize
-#   3. Substitutes REPLACE_WITH_* placeholders with actual values
-#   4. Applies to cluster
+#   1. Validates image tags in kustomization.yaml match VERSIONS.txt
+#   2. Reads values from qwiser-config ConfigMap
+#   3. Builds manifests with kustomize
+#   4. Substitutes REPLACE_WITH_* placeholders with actual values
+#   5. Applies to cluster
 #
 # =============================================================================
 
@@ -42,6 +44,7 @@ RESOURCE_GROUP=""
 AKS_NAME=""
 DRY_RUN=false
 KUSTOMIZE_DIR=""
+SKIP_VERSION_CHECK=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -70,8 +73,12 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --skip-version-check)
+            SKIP_VERSION_CHECK=true
+            shift
+            ;;
         -h|--help)
-            head -38 "$0" | tail -33
+            head -42 "$0" | tail -37
             exit 0
             ;;
         *)
@@ -107,6 +114,107 @@ fi
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+# Validate that kustomization.yaml image tags match VERSIONS.txt
+validate_versions() {
+    local versions_file="$REPO_ROOT/VERSIONS.txt"
+    local kustomization_file="$KUSTOMIZE_DIR/kustomization.yaml"
+    
+    if [ ! -f "$versions_file" ]; then
+        echo ""
+        echo "[ERROR] VERSIONS.txt not found at: $versions_file"
+        echo ""
+        echo "This file defines the expected image versions for deployment."
+        echo "It should be in the root of the qwiser-on-prem repository."
+        echo ""
+        if [ "$SKIP_VERSION_CHECK" = true ]; then
+            echo "[WARNING] --skip-version-check specified, continuing without validation..."
+            return 0
+        else
+            echo "To bypass this check (advanced): ./scripts/apply.sh --skip-version-check ..."
+            exit 1
+        fi
+    fi
+    
+    echo "Validating image versions..."
+    
+    local mismatches=()
+    local missing_in_kustomization=()
+    
+    # Parse VERSIONS.txt - extract image:tag pairs
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip comments and empty lines
+        [[ -z "${line// /}" ]] && continue
+        [[ "$line" =~ ^# ]] && continue
+        
+        # Extract image name and tag (format: qwiser/image-name:tag)
+        local image_name="${line%%:*}"
+        local expected_tag="${line##*:}"
+        
+        # Look for this image in kustomization.yaml
+        # Format: newTag: vX.X.X after a line containing the image name
+        local kustomization_tag=""
+        local in_image_block=false
+        
+        while IFS= read -r kline; do
+            if [[ "$kline" =~ "name:".*/qwiser/${image_name##*/} ]] || [[ "$kline" =~ "name:".*"${image_name##*/}" ]]; then
+                in_image_block=true
+            elif [ "$in_image_block" = true ] && [[ "$kline" =~ newTag: ]]; then
+                kustomization_tag=$(echo "$kline" | sed 's/.*newTag:[[:space:]]*//' | tr -d ' ')
+                break
+            elif [ "$in_image_block" = true ] && [[ "$kline" =~ "- name:" ]]; then
+                # Moved to next image block without finding newTag
+                break
+            fi
+        done < "$kustomization_file"
+        
+        if [ -z "$kustomization_tag" ]; then
+            # Image might be commented out (e.g., embeddings-worker)
+            if grep -q "# *- name:.*${image_name##*/}" "$kustomization_file" 2>/dev/null; then
+                # Commented out - skip silently
+                continue
+            fi
+            missing_in_kustomization+=("$image_name:$expected_tag")
+        elif [ "$kustomization_tag" != "$expected_tag" ]; then
+            mismatches+=("$image_name: VERSIONS.txt=$expected_tag, kustomization.yaml=$kustomization_tag")
+        fi
+    done < "$versions_file"
+    
+    # Report results
+    local has_errors=false
+    
+    if [ ${#mismatches[@]} -gt 0 ]; then
+        has_errors=true
+        echo ""
+        echo "[ERROR] Version mismatch between VERSIONS.txt and kustomization.yaml:"
+        for mismatch in "${mismatches[@]}"; do
+            echo "  - $mismatch"
+        done
+    fi
+    
+    if [ ${#missing_in_kustomization[@]} -gt 0 ]; then
+        echo ""
+        echo "[WARNING] Images in VERSIONS.txt not found in kustomization.yaml:"
+        for missing in "${missing_in_kustomization[@]}"; do
+            echo "  - $missing (may be intentionally excluded)"
+        done
+    fi
+    
+    if [ "$has_errors" = true ]; then
+        echo ""
+        echo "To fix: Update k8s/base/kustomization.yaml to match VERSIONS.txt"
+        echo ""
+        if [ "$SKIP_VERSION_CHECK" = true ]; then
+            echo "[WARNING] --skip-version-check specified, continuing anyway..."
+            echo ""
+        else
+            echo "To bypass this check (advanced): ./scripts/apply.sh --skip-version-check ..."
+            exit 1
+        fi
+    else
+        echo "[OK] Image versions validated"
+    fi
+}
 
 # Run kubectl command - either directly or via az aks command invoke
 run_kubectl() {
@@ -247,6 +355,10 @@ echo "  UAMI Client ID:    ${UAMI_CLIENT_ID:0:8}..."
 echo "  Key Vault Name:    $KEY_VAULT_NAME"
 echo "  Tenant ID:         ${TENANT_ID:0:8}..."
 echo "  Storage Account:   $STORAGE_ACCOUNT_NAME"
+echo ""
+
+# Validate versions before building
+validate_versions
 echo ""
 
 # Build manifests with kustomize
