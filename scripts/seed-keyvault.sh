@@ -87,7 +87,17 @@ if ! error_output=$(az keyvault secret list --vault-name "$KEYVAULT_NAME" --maxr
     echo -e "${RED}[ERROR] Cannot access Key Vault '$KEYVAULT_NAME'${NC}"
     echo -e "${RED}$error_output${NC}"
     echo ""
-    if echo "$error_output" | grep -qi "Forbidden\|ForbiddenByRbac\|not authorized"; then
+    if echo "$error_output" | grep -qi "ForbiddenByConnection\|Public network access is disabled\|private link"; then
+        echo -e "${YELLOW}Key Vault has public network access disabled (private endpoint only).${NC}"
+        echo ""
+        echo "Options:"
+        echo "  1. Use Azure Cloud Shell (has private endpoint access)"
+        echo "  2. Temporarily enable public access with your IP:"
+        echo ""
+        echo "     az keyvault update --name $KEYVAULT_NAME --resource-group <RG> --public-network-access Enabled"
+        echo "     az keyvault network-rule add --name $KEYVAULT_NAME --resource-group <RG> --ip-address \$(curl -s ifconfig.me)"
+        echo ""
+    elif echo "$error_output" | grep -qi "ForbiddenByRbac\|not authorized\|does not have authorization"; then
         echo -e "${YELLOW}You need 'Key Vault Secrets Officer' role. Run:${NC}"
         echo ""
         echo "  az role assignment create \\"

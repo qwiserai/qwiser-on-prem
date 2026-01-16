@@ -143,7 +143,16 @@ if ! error_output=$(az appconfig kv list -n "$APPCONFIG_NAME" --top 1 -o none 2>
     echo -e "${RED}[ERROR] Cannot access App Configuration '$APPCONFIG_NAME'${NC}"
     echo -e "${RED}$error_output${NC}"
     echo ""
-    if echo "$error_output" | grep -qi "Forbidden\|AuthorizationFailed\|not authorized\|does not have authorization"; then
+    if echo "$error_output" | grep -qi "public network access\|private endpoint\|private link\|ConnectionError\|connection was refused"; then
+        echo -e "${YELLOW}App Configuration has public network access disabled (private endpoint only).${NC}"
+        echo ""
+        echo "Options:"
+        echo "  1. Use Azure Cloud Shell (has private endpoint access)"
+        echo "  2. Temporarily enable public access with your IP:"
+        echo ""
+        echo "     az appconfig update --name $APPCONFIG_NAME --resource-group <RG> --enable-public-network true"
+        echo ""
+    elif echo "$error_output" | grep -qi "Forbidden\|AuthorizationFailed\|not authorized\|does not have authorization"; then
         echo -e "${YELLOW}You need 'App Configuration Data Owner' role. Run:${NC}"
         echo ""
         echo "  az role assignment create \\"
