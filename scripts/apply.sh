@@ -394,11 +394,30 @@ echo "Applying manifests to cluster..."
 echo ""
 
 if [ "$USE_INVOKE" = true ]; then
-    # For invoke mode, we need to pass the manifests as stdin via a heredoc in the command
-    # Create a temporary approach: base64 encode and decode
-    MANIFESTS_B64=$(echo "$MANIFESTS" | base64 -w 0)
+    # For invoke mode, we need to pass the manifests via --file
+    # Create a temporary file with the manifests
+    TEMP_MANIFEST=$(mktemp)
+    echo "$MANIFESTS" > "$TEMP_MANIFEST"
     
-    run_kubectl "echo '$MANIFESTS_B64' | base64 -d | kubectl apply -f -"
+    # Use --file to upload the manifest file to the cluster
+    set +e
+    APPLY_OUTPUT=$(az aks command invoke \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$AKS_NAME" \
+        --command "kubectl apply -f manifest.yaml" \
+        --file "$TEMP_MANIFEST:manifest.yaml" 2>&1)
+    APPLY_EXIT=$?
+    set -e
+    
+    rm -f "$TEMP_MANIFEST"
+    
+    echo "$APPLY_OUTPUT"
+    
+    if [ $APPLY_EXIT -ne 0 ]; then
+        echo ""
+        echo "[ERROR] Failed to apply manifests"
+        exit 1
+    fi
 else
     echo "$MANIFESTS" | kubectl apply -f -
 fi

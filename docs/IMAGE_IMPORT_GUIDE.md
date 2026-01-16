@@ -166,6 +166,46 @@ To apply manifests:
 ./scripts/apply.sh
 ```
 
+### Verify Deployment
+
+After `apply.sh` completes, verify all pods are running:
+
+**Via `az aks command invoke`** (for private AKS):
+```bash
+# Check all pods are Running
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get pods -l app.kubernetes.io/part-of=qwiser-on-prem"
+
+# Check deployments are ready
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get deployments"
+
+# Check ingress is configured
+az aks command invoke -g $RESOURCE_GROUP -n $AKS_NAME \
+    --command "kubectl get ingress"
+```
+
+**With direct kubectl** (if VPN connected):
+```bash
+kubectl get pods -l app.kubernetes.io/part-of=qwiser-on-prem
+kubectl get deployments
+kubectl get ingress
+```
+
+Expected pod status - all should show `Running` (or `Completed` for jobs):
+```
+NAME                                READY   STATUS    RESTARTS   AGE
+frontend-xxxxx                      1/1     Running   0          2m
+internal-db-xxxxx                   1/1     Running   0          2m
+other-generation-xxxxx              1/1     Running   0          2m
+public-api-xxxxx                    1/1     Running   0          2m
+smart-quiz-xxxxx                    1/1     Running   0          2m
+text-loading-xxxxx                  1/1     Running   0          2m
+topic-modeling-xxxxx                1/1     Running   0          2m
+```
+
+If any pods show `ImagePullBackOff` or `ErrImagePull`, see [Troubleshooting](#troubleshooting).
+
 ---
 
 ## Updating to a New Version
@@ -248,7 +288,6 @@ az acr repository show-tags --name $ACR_NAME --repository qwiser/public-api -o t
 ## Security Notes
 
 - Your credentials are **pull-only** - you cannot push images to QWiser's ACR
-- Credentials are scoped to release images only - debug images are not accessible
 - Store credentials securely - do not commit to version control
 - Credentials expire after 1 year - QWiser will provide renewals
 
