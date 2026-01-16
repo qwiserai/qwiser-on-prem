@@ -6,8 +6,10 @@ kind: Kustomization
 # =============================================================================
 
 # Common labels applied to all resources
-commonLabels:
-  app.kubernetes.io/part-of: qwiser-on-prem
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: qwiser-on-prem
+    includeSelectors: false
 #
 # University deployment - no yt-worker, stripe-worker, or CSI Driver secrets.
 # All secrets are handled via Azure App Configuration with Key Vault references.

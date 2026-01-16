@@ -155,12 +155,10 @@ image: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/public-api:PLACEHOLDER
 image: youruni-acr.azurecr.io/qwiser/public-api:v1.0.0
 ```
 
-Image versions are centralized in `k8s/base/kustomization.yaml` under the `images:` section.
+Image versions are defined in `k8s/base/kustomization.yaml` under the `images:` section. These must match the tags in `VERSIONS.txt`.
 
-To apply manifests with image substitution:
+To apply manifests:
 ```bash
-cd k8s/base
-
 # For private AKS (recommended):
 ./scripts/apply.sh --invoke -g $RESOURCE_GROUP -n $AKS_NAME
 
