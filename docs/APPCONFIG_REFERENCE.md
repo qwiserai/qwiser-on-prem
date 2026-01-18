@@ -77,10 +77,10 @@ All keys use labels to separate environments:
 
 ### Qdrant (`qdrant:*`)
 
-| Key                  | Type   | Required | Default                                       | Description              |
-| -------------------- | ------ | -------- | --------------------------------------------- | ------------------------ |
-| `qdrant:cluster_url` | string | Only if using chat functionality      | `http://qdrant.qdrant.svc.cluster.local:6333` | Internal K8s service URL |
-| `qdrant:api_key`     | KV ref | Only if using chat functionality      | -                                             | Qdrant API key           |
+| Key                  | Type   | Required                         | Default                                       | Description              |
+| -------------------- | ------ | -------------------------------- | --------------------------------------------- | ------------------------ |
+| `qdrant:cluster_url` | string | Only if using chat functionality | `http://qdrant.qdrant.svc.cluster.local:6333` | Internal K8s service URL |
+| `qdrant:api_key`     | KV ref | Only if using chat functionality | -                                             | Qdrant API key           |
 
 ### Application Insights (`azure:*`)
 
@@ -139,13 +139,13 @@ ai:{model-name}:max_concurrent (optional) - Max concurrent requests (for APIs wi
 
 ### OCR (Mistral Document AI)
 
-| Key                    | Type    | Required | Example                                                                                                                | Description                                    |
-| ---------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `ai:ocr:endpoint`      | string  | Yes      | `https://qwiser-ai.openai.azure.com/openai/deployments/mistral-document-ai/completions?api-version=2025-01-01-preview` | OCR API endpoint                               |
-| `ai:ocr:api_key`       | KV ref  | Yes      | `{"uri":"https://kv.vault.azure.net/secrets/AI-FOUNDRY-API-KEY"}`                                                      | Key Vault reference                            |
-| `ai:ocr:model`         | string  | Yes      | `mistral-document-ai-2505`                                                                                             | Model name                                     |
-| `ai:ocr:rpm`           | integer | Yes      | `500`                                                                                                                  | Requests per minute                            |
-| `ai:ocr:max_concurrent` | integer | No       | `8`                                                                                                                    | Max concurrent requests (recommended for OCR)  |
+| Key                     | Type    | Required | Example                                                                                                                | Description                                   |
+| ----------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `ai:ocr:endpoint`       | string  | Yes      | `https://qwiser-ai.openai.azure.com/openai/deployments/mistral-document-ai/completions?api-version=2025-01-01-preview` | OCR API endpoint                              |
+| `ai:ocr:api_key`        | KV ref  | Yes      | `{"uri":"https://kv.vault.azure.net/secrets/AI-FOUNDRY-API-KEY"}`                                                      | Key Vault reference                           |
+| `ai:ocr:model`          | string  | Yes      | `mistral-document-ai-2505`                                                                                             | Model name                                    |
+| `ai:ocr:rpm`            | integer | Yes      | `500`                                                                                                                  | Requests per minute                           |
+| `ai:ocr:max_concurrent` | integer | No       | `8`                                                                                                                    | Max concurrent requests (recommended for OCR) |
 
 **Note**: Mistral OCR typically has strict concurrency limits (e.g., 10 concurrent requests). Set `max_concurrent` to 8 (with safety margin) to avoid rate limit errors.
 
