@@ -508,6 +508,7 @@ set_key "ai:ocr:endpoint" "PLACEHOLDER-CONFIGURE-AFTER-AI-DEPLOYMENT"
 set_keyvault_ref "ai:ocr:api_key" "AI-FOUNDRY-API-KEY"
 set_key "ai:ocr:model" "mistral-document-ai-2505"
 set_key "ai:ocr:rpm" "PLACEHOLDER-SET-BASED-ON-DEPLOYMENT-QUOTA"
+set_key "ai:ocr:max_concurrent" "8"  # Mistral has strict concurrency limits
 
 # ============================================================================
 # LTI Configuration

@@ -177,7 +177,8 @@ spec:
 # =============================================================================
 # public-api - Ingress and Egress
 # =============================================================================
-# API gateway - accepts traffic from NGINX, calls internal services + Qdrant.
+# API gateway - accepts traffic from NGINX, embeddings-worker, smart-quiz.
+# Calls internal services + Qdrant.
 # =============================================================================
 
 apiVersion: networking.k8s.io/v1
@@ -203,6 +204,22 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+    # From embeddings-worker-hybrid (API callbacks)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: embeddings-worker-hybrid
+      ports:
+        - protocol: TCP
+          port: 8000
+    # From smart-quiz (API callbacks)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: smart-quiz
       ports:
         - protocol: TCP
           port: 8000
@@ -265,7 +282,8 @@ spec:
 # =============================================================================
 # internal-db - Ingress and Egress
 # =============================================================================
-# Database abstraction layer - accepts from public-api, cronjobs, smart-quiz.
+# Database abstraction layer - accepts from public-api, other-generation,
+# topic-modeling, smart-quiz, cronjobs.
 # Connects to MySQL (via PE) and Redis.
 # =============================================================================
 
@@ -292,11 +310,27 @@ spec:
       ports:
         - protocol: TCP
           port: 8000
+    # From other-generation
+    - from:
+        - podSelector:
+            matchLabels:
+              app: other-generation
+      ports:
+        - protocol: TCP
+          port: 8000
     # From smart-quiz
     - from:
         - podSelector:
             matchLabels:
               app: smart-quiz
+      ports:
+        - protocol: TCP
+          port: 8000
+    # From topic-modeling (tree creation callbacks)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: topic-modeling
       ports:
         - protocol: TCP
           port: 8000
@@ -336,8 +370,8 @@ spec:
 # =============================================================================
 # other-generation - Ingress and Egress
 # =============================================================================
-# GPT generation service - accepts from public-api.
-# Connects to Redis and Azure OpenAI.
+# GPT generation service - accepts from public-api, topic-modeling, smart-quiz.
+# Connects to internal-db, Redis and Azure OpenAI.
 # =============================================================================
 
 apiVersion: networking.k8s.io/v1
@@ -362,7 +396,29 @@ spec:
       ports:
         - protocol: TCP
           port: 8000
+    - from:
+        - podSelector:
+            matchLabels:
+              app: topic-modeling
+      ports:
+        - protocol: TCP
+          port: 8000
+    - from:
+        - podSelector:
+            matchLabels:
+              app: smart-quiz
+      ports:
+        - protocol: TCP
+          port: 8000
   egress:
+    # internal-db
+    - to:
+        - podSelector:
+            matchLabels:
+              app: internal-db
+      ports:
+        - protocol: TCP
+          port: 8000
     # Redis
     - to:
         - ipBlock:
@@ -415,7 +471,7 @@ spec:
 # topic-modeling - Ingress and Egress
 # =============================================================================
 # Knowledge tree coordinator - accepts from public-api.
-# Connects to Redis, Azure Blob, Azure Queue.
+# Connects to internal-db, other-generation, Redis, Azure Blob, Azure Queue.
 # =============================================================================
 
 apiVersion: networking.k8s.io/v1
@@ -441,6 +497,22 @@ spec:
         - protocol: TCP
           port: 8000
   egress:
+    # internal-db (for tree creation callbacks)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: internal-db
+      ports:
+        - protocol: TCP
+          port: 8000
+    # other-generation (for GPT calls during tree creation)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: other-generation
+      ports:
+        - protocol: TCP
+          port: 8000
     # Redis
     - to:
         - ipBlock:
@@ -454,7 +526,7 @@ spec:
 # smart-quiz - Ingress and Egress
 # =============================================================================
 # Adaptive quiz service - accepts from public-api.
-# Connects to internal-db and Redis.
+# Connects to internal-db, other-generation, public-api and Redis.
 # =============================================================================
 
 apiVersion: networking.k8s.io/v1
@@ -485,6 +557,22 @@ spec:
         - podSelector:
             matchLabels:
               app: internal-db
+      ports:
+        - protocol: TCP
+          port: 8000
+    # other-generation (for GPT calls)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: other-generation
+      ports:
+        - protocol: TCP
+          port: 8000
+    # public-api (for API callbacks)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: public-api
       ports:
         - protocol: TCP
           port: 8000
@@ -581,7 +669,7 @@ spec:
 # embeddings-worker-hybrid - Egress Only
 # =============================================================================
 # Hybrid embeddings worker (scale-to-zero, handles both queues).
-# Connects to MySQL (direct), Redis, Qdrant, Azure Blob/Queue.
+# Connects to public-api, MySQL (direct), Redis, Qdrant, Azure Blob/Queue.
 # =============================================================================
 
 apiVersion: networking.k8s.io/v1
@@ -600,6 +688,14 @@ spec:
     - Egress
   # No ingress needed - worker pulls from queue
   egress:
+    # public-api (for API callbacks)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: public-api
+      ports:
+        - protocol: TCP
+          port: 8000
     # MySQL via Private Endpoint
     - to:
         - ipBlock:

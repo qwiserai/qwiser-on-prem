@@ -1,9 +1,5 @@
 # QWiser University - Deployment Guide
 
-> **Last Updated**: 2026-01-15
-> **Version**: 1.1.0
-> **Audience**: University IT Infrastructure Teams
-
 ---
 
 ## Table of Contents
@@ -449,22 +445,26 @@ If any pods show `ImagePullBackOff` or `ErrImagePull`, see [Troubleshooting](#tr
 
 ---
 
-## Phase 8: DNS & Front Door Configuration
+## Phase 8: DNS Configuration
 
-### 8.1 Get Front Door Hostname
+The Bicep deployment already created the custom domain in Front Door and associated it with the route. You just need to configure DNS records for validation and routing.
+
+### 8.1 Get Configuration Values
 
 ```bash
-FRONTDOOR_HOSTNAME=$(jq -r '.frontDoorHostname.value' deployment-outputs.json)
-RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json)
-FRONTDOOR_NAME=$(jq -r '.frontDoorId.value' deployment-outputs.json | sed 's|.*/||')
+FRONTDOOR_HOSTNAME=$(jq -r '.frontDoorHostname.value' deployment-outputs.json | tr -d '\r')
+RESOURCE_GROUP=$(jq -r '.resourceGroupName.value' deployment-outputs.json | tr -d '\r')
+FRONTDOOR_NAME=$(jq -r '.frontDoorName.value' deployment-outputs.json | tr -d '\r')
+CUSTOM_DOMAIN_NAME=$(jq -r '.customDomainName.value' deployment-outputs.json | tr -d '\r')
 
 echo "Front Door hostname: $FRONTDOOR_HOSTNAME"
 echo "Front Door name: $FRONTDOOR_NAME"
+echo "Custom domain name: $CUSTOM_DOMAIN_NAME"
 ```
 
 ### 8.2 Create DNS CNAME Record
 
-In your DNS provider, create a CNAME record:
+In your DNS provider, create a CNAME record pointing your custom domain to Front Door:
 
 ```
 qwiser.myuniversity.edu  CNAME  <frontdoor-hostname>
@@ -487,19 +487,7 @@ az network dns record-set cname set-record \
 nslookup qwiser.$DNS_ZONE_NAME
 ```
 
-### 8.3 Add Custom Domain to Front Door
-
-```bash
-az afd custom-domain create \
-    --resource-group "$RESOURCE_GROUP" \
-    --profile-name "$FRONTDOOR_NAME" \
-    --custom-domain-name "qwiser-custom" \
-    --host-name "qwiser.myuniversity.edu" \
-    --certificate-type ManagedCertificate \
-    --minimum-tls-version TLS12
-```
-
-### 8.4 Validate Domain Ownership
+### 8.3 Create DNS TXT Record for Validation
 
 Get the validation token:
 
@@ -507,7 +495,7 @@ Get the validation token:
 VALIDATION_TOKEN=$(az afd custom-domain show \
     --resource-group "$RESOURCE_GROUP" \
     --profile-name "$FRONTDOOR_NAME" \
-    --custom-domain-name "qwiser-custom" \
+    --custom-domain-name "$CUSTOM_DOMAIN_NAME" \
     --query "validationProperties.validationToken" -o tsv | tr -d '\r')
 
 echo "Validation token: $VALIDATION_TOKEN"
@@ -519,13 +507,9 @@ Create a TXT record in your DNS provider:
 _dnsauth.qwiser.myuniversity.edu  TXT  <validation-token>
 ```
 
-**If using Azure DNS Zone** (faster propagation within Azure):
+**If using Azure DNS Zone:**
 
 ```bash
-# Replace with your DNS zone resource group and zone name
-DNS_ZONE_RG="your-dns-zone-resource-group"
-DNS_ZONE_NAME="myuniversity.edu"
-
 az network dns record-set txt add-record \
     --resource-group "$DNS_ZONE_RG" \
     --zone-name "$DNS_ZONE_NAME" \
@@ -540,40 +524,26 @@ az network dns record-set txt show \
     --query "txtRecords[0].value[0]" -o tsv
 ```
 
-Wait for validation (can take a few minutes after DNS propagates):
+### 8.4 Wait for Validation and Certificate Provisioning
+
+Front Door's validation polling slows down over time. Trigger an immediate re-check by sending an update request:
 
 ```bash
+az afd custom-domain update \
+    --resource-group "$RESOURCE_GROUP" \
+    --profile-name "$FRONTDOOR_NAME" \
+    --custom-domain-name "$CUSTOM_DOMAIN_NAME" \
+    --minimum-tls-version TLS12
+```
+
+Certificate provisioning takes 5-15 minutes after DNS records propagate:
+
+```bash
+# Check validation and certificate status
 az afd custom-domain show \
     --resource-group "$RESOURCE_GROUP" \
     --profile-name "$FRONTDOOR_NAME" \
-    --custom-domain-name "qwiser-custom" \
-    --query "domainValidationState" -o tsv
-```
-
-Proceed when validation state is `Approved`.
-
-### 8.5 Associate Domain with Route
-
-```bash
-ENDPOINT_NAME=$(az afd endpoint list --resource-group "$RESOURCE_GROUP" --profile-name "$FRONTDOOR_NAME" --query "[0].name" -o tsv | tr -d '\r')
-
-az afd route update \
-    --resource-group "$RESOURCE_GROUP" \
-    --profile-name "$FRONTDOOR_NAME" \
-    --endpoint-name "$ENDPOINT_NAME" \
-    --route-name "default-route" \
-    --custom-domains "qwiser-custom"
-```
-
-### 8.6 Verify Certificate Provisioning
-
-Certificate provisioning takes 5-15 minutes after domain validation:
-
-```bash
-az afd custom-domain show \
-    --resource-group "$RESOURCE_GROUP" \
-    --profile-name "$FRONTDOOR_NAME" \
-    --custom-domain-name "qwiser-custom" \
+    --custom-domain-name "$CUSTOM_DOMAIN_NAME" \
     --query "{domain: hostName, validation: domainValidationState, provisioning: provisioningState, certificate: tlsSettings.certificateType}" -o table
 ```
 

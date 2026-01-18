@@ -1,9 +1,5 @@
 # QWiser University - App Configuration Reference
 
-> **Last Updated**: 2026-01-14
-> **Version**: 1.0.0
-> **Audience**: University IT Infrastructure Teams
-
 ---
 
 ## Overview
@@ -107,6 +103,7 @@ ai:{model-name}:rpm
 ai:{model-name}:tpm
 ai:{model-name}:context_window (optional)
 ai:{model-name}:max_output_tokens (optional)
+ai:{model-name}:max_concurrent (optional) - Max concurrent requests (for APIs with concurrency limits)
 ```
 
 ### GPT-4.1 Mini
@@ -142,12 +139,15 @@ ai:{model-name}:max_output_tokens (optional)
 
 ### OCR (Mistral Document AI)
 
-| Key               | Type    | Example                                                                                                                |
-| ----------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `ai:ocr:endpoint` | string  | `https://qwiser-ai.openai.azure.com/openai/deployments/mistral-document-ai/completions?api-version=2025-01-01-preview` |
-| `ai:ocr:api_key`  | KV ref  | `{"uri":"https://kv.vault.azure.net/secrets/AI-FOUNDRY-API-KEY"}`                                                      |
-| `ai:ocr:model`    | string  | `mistral-document-ai-2505`                                                                                             |
-| `ai:ocr:rpm`      | integer | `500`                                                                                                                  |
+| Key                    | Type    | Required | Example                                                                                                                | Description                                    |
+| ---------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `ai:ocr:endpoint`      | string  | Yes      | `https://qwiser-ai.openai.azure.com/openai/deployments/mistral-document-ai/completions?api-version=2025-01-01-preview` | OCR API endpoint                               |
+| `ai:ocr:api_key`       | KV ref  | Yes      | `{"uri":"https://kv.vault.azure.net/secrets/AI-FOUNDRY-API-KEY"}`                                                      | Key Vault reference                            |
+| `ai:ocr:model`         | string  | Yes      | `mistral-document-ai-2505`                                                                                             | Model name                                     |
+| `ai:ocr:rpm`           | integer | Yes      | `500`                                                                                                                  | Requests per minute                            |
+| `ai:ocr:max_concurrent` | integer | No       | `8`                                                                                                                    | Max concurrent requests (recommended for OCR)  |
+
+**Note**: Mistral OCR typically has strict concurrency limits (e.g., 10 concurrent requests). Set `max_concurrent` to 8 (with safety margin) to avoid rate limit errors.
 
 ---
 

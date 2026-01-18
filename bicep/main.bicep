@@ -535,6 +535,7 @@ module frontDoor 'modules/networking/frontdoor.bicep' = {
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
     enableWaf: enableWaf
     wafMode: wafMode
+    customDomain: customDomain
   }
 }
 
@@ -666,11 +667,17 @@ output privateLinkServiceName string = privateLinkService.outputs.plsName
 @description('Front Door profile resource ID')
 output frontDoorId string = frontDoor.outputs.frontDoorId
 
+@description('Front Door profile name')
+output frontDoorName string = frontDoor.outputs.frontDoorName
+
 @description('Front Door endpoint hostname (configure CNAME: subdomain.university.edu → this)')
 output frontDoorHostname string = frontDoor.outputs.frontDoorEndpointHostname
 
 @description('WAF policy resource ID')
 output wafPolicyId string = frontDoor.outputs.wafPolicyId
+
+@description('Custom domain name in Front Door (for CLI reference)')
+output customDomainName string = frontDoor.outputs.customDomainName
 
 // --- URL Configuration Outputs ---
 

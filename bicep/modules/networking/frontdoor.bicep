@@ -39,6 +39,9 @@ param originPrivateIpAddress string
 @description('Log Analytics workspace resource ID for diagnostics')
 param logAnalyticsWorkspaceId string
 
+@description('Custom domain for origin host header (e.g., qwiser.university.edu)')
+param customDomain string
+
 @description('Enable Web Application Firewall')
 param enableWaf bool = true
 
@@ -109,7 +112,7 @@ resource originGroup 'Microsoft.Cdn/profiles/originGroups@2024-02-01' = {
       additionalLatencyInMilliseconds: 0
     }
     healthProbeSettings: {
-      probePath: '/healthz'
+      probePath: '/'
       probeRequestType: 'GET'
       probeProtocol: 'Http'
       probeIntervalInSeconds: 30
@@ -131,7 +134,8 @@ resource origin 'Microsoft.Cdn/profiles/originGroups/origins@2024-02-01' = {
     hostName: originPrivateIpAddress
     httpPort: 80
     httpsPort: 443
-    originHostHeader: originPrivateIpAddress
+    // Use custom domain as host header so NGINX ingress routes correctly
+    originHostHeader: customDomain
     priority: 1
     weight: 1000
     enabledState: 'Enabled'
@@ -151,6 +155,28 @@ resource origin 'Microsoft.Cdn/profiles/originGroups/origins@2024-02-01' = {
 }
 
 // ============================================================================
+// Custom Domain
+// ============================================================================
+// Creates the custom domain resource and associates it with the route.
+// Domain validation requires DNS TXT record (customer responsibility).
+// Certificate is auto-provisioned after validation succeeds.
+// ============================================================================
+
+var customDomainName = 'qwiser-custom'
+
+resource customDomainResource 'Microsoft.Cdn/profiles/customDomains@2024-02-01' = {
+  parent: frontDoorProfile
+  name: customDomainName
+  properties: {
+    hostName: customDomain
+    tlsSettings: {
+      certificateType: 'ManagedCertificate'
+      minimumTlsVersion: 'TLS12'
+    }
+  }
+}
+
+// ============================================================================
 // Route
 // ============================================================================
 
@@ -161,6 +187,12 @@ resource route 'Microsoft.Cdn/profiles/afdEndpoints/routes@2024-02-01' = {
     originGroup: {
       id: originGroup.id
     }
+    // Associate custom domain with route
+    customDomains: [
+      {
+        id: customDomainResource.id
+      }
+    ]
     supportedProtocols: [
       'Http'
       'Https'
@@ -331,3 +363,9 @@ output frontDoorEndpointId string = frontDoorEndpoint.id
 
 @description('WAF policy resource ID')
 output wafPolicyId string = enableWaf ? wafPolicy.id : ''
+
+@description('Custom domain name (for CLI reference)')
+output customDomainName string = customDomainName
+
+@description('Custom domain resource ID')
+output customDomainId string = customDomainResource.id

@@ -4418,7 +4418,7 @@
                   "additionalLatencyInMilliseconds": 0
                 },
                 "healthProbeSettings": {
-                  "probePath": "/healthz",
+                                    "probePath": "/",
                   "probeRequestType": "GET",
                   "probeProtocol": "Http",
                   "probeIntervalInSeconds": 30

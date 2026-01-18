@@ -46,24 +46,24 @@ labels:
 # -----------------------------------------------------------------------------
 images:
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/public-api
-    newTag: v1.0.0
+    newTag: v0.0.3
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/internal-db
-    newTag: v1.0.0
+    newTag: v0.0.10
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/other-generation
-    newTag: v1.0.0
+    newTag: v0.0.2
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/text-loading
-    newTag: v1.0.0
+    newTag: v0.0.3
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/topic-modeling
-    newTag: v1.0.0
+    newTag: v0.0.3
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/smart-quiz
-    newTag: v1.0.0
+    newTag: v0.0.3
   # EMBEDDINGS-WORKER: Running externally (see resources section comment)
   # - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/embeddings-worker
-  #   newTag: v1.0.0
+  #   newTag: v0.0.2
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/frontend
-    newTag: v1.0.0
+    newTag: v0.0.95
   - name: REPLACE_WITH_ACR_LOGIN_SERVER/qwiser/cronjobs
-    newTag: v1.0.0
+    newTag: v0.0.5
 
 resources:
   - manifest.yaml

@@ -1,9 +1,5 @@
 # QWiser University - Container Image Import Guide
 
-> **Last Updated**: 2026-01-14
-> **Version**: 1.0.0
-> **Audience**: University IT Infrastructure Teams
-
 ---
 
 ## Overview
