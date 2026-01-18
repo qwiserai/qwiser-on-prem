@@ -82,7 +82,6 @@ After infrastructure deployment, follow [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GU
 | [PREREQUISITES.md](docs/PREREQUISITES.md) | Prerequisites and resource provider registration |
 | [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Full deployment walkthrough |
 | [IMAGE_IMPORT_GUIDE.md](docs/IMAGE_IMPORT_GUIDE.md) | Container image import process |
-| [ML_MODELS_SETUP.md](docs/ML_MODELS_SETUP.md) | ML model download and mounting |
 | [APPCONFIG_REFERENCE.md](docs/APPCONFIG_REFERENCE.md) | Configuration key reference |
 | [LTI_INTEGRATION.md](docs/LTI_INTEGRATION.md) | LMS integration guide |
 | [SECRET_ROTATION.md](docs/SECRET_ROTATION.md) | Secret rotation procedures |

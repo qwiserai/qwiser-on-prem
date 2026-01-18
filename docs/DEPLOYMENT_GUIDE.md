@@ -170,6 +170,8 @@ az appconfig kv set \
     --yes
 ```
 
+See [APPCONFIG_REFERENCE.md](./APPCONFIG_REFERENCE.md) for the full list of configuration options.
+
 ### Update API Key in Key Vault
 
 ```bash
@@ -187,7 +189,7 @@ az keyvault secret set \
 
 Download HuggingFace models and mount to Azure Files. See [ML_MODELS_SETUP.md](./ML_MODELS_SETUP.md) for detailed instructions.
 
-> **Note**: You can skip this step if you are not using the ML models (chat functionality). The guide is **STILL UNTESTED** and is provided as a scaffold for future reference. QWiser is expected to migrate to an Azure AI Search based chat functionality which will not require the ML models.
+> **Note**: You can skip this step if you are not using the ML models (chat functionality). This step is **still untested** and is provided as a scaffold for future reference. QWiser is expected to migrate to an Azure AI Search based chat functionality which will not require the ML models.
 
 ### Required Models
 
@@ -367,7 +369,9 @@ keda-operator-xxxxx              1/1     Running   0          2m
 keda-operator-metrics-xxxxx      1/1     Running   0          2m
 ```
 
-### 7.3 Install Qdrant
+### 7.3 Install Qdrant - Skip if you are not using the chat functionality. 
+
+> **Note**: This step is **still untested** and is provided as a scaffold for future reference. QWiser is expected to migrate to an Azure AI Search based chat functionality which will not require Qdrant.
 
 ```bash
 KEYVAULT_NAME=$(jq -r '.keyVaultName.value' deployment-outputs.json)
