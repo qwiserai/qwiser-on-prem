@@ -79,8 +79,8 @@ All keys use labels to separate environments:
 
 | Key                  | Type   | Required | Default                                       | Description              |
 | -------------------- | ------ | -------- | --------------------------------------------- | ------------------------ |
-| `qdrant:cluster_url` | string | Yes      | `http://qdrant.qdrant.svc.cluster.local:6333` | Internal K8s service URL |
-| `qdrant:api_key`     | KV ref | Yes      | -                                             | Qdrant API key           |
+| `qdrant:cluster_url` | string | Only if using chat functionality      | `http://qdrant.qdrant.svc.cluster.local:6333` | Internal K8s service URL |
+| `qdrant:api_key`     | KV ref | Only if using chat functionality      | -                                             | Qdrant API key           |
 
 ### Application Insights (`azure:*`)
 
