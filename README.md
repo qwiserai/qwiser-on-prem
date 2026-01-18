@@ -8,7 +8,7 @@ Deploy QWiser to your own Azure infrastructure.
 
 ## What is QWiser?
 
-QWiser is an AI-powered learning platform that transforms educational content (PDFs, videos, YouTube, Wikipedia) into interactive knowledge trees, study materials, quizzes, and adaptive spaced-repetition learning.
+QWiser is an AI-powered learning platform that transforms educational content (PDFs, videos, YouTube, Wikipedia) into interactive knowledge trees, organized study notes, quizzes, and adaptive spaced-repetition learning.
 
 ---
 
