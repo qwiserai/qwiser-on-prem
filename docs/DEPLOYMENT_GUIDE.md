@@ -1,5 +1,7 @@
 # QWiser University - Deployment Guide
 
+> **Note**: This guide has been thoroughly tested on **WSL2 (Windows Subsystem for Linux 2)** only. Other environments (macOS, native Linux, Git Bash, PowerShell, etc.) may require adaptations. For deployment assistance, contact **jonathan@qwiser.io**.
+
 ---
 
 ## Table of Contents
